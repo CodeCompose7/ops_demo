@@ -1,0 +1,84 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11"]
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python ${{ matrix.python-version }} 설정
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: 의존성 캐싱
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: 의존성 설치
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: 코드 스타일 검사 (flake8)
+        run: |
+          pip install flake8
+          # 프로젝트의 Python 파일들에 대해 문법 에러와 undefined names 체크
+          flake8 app tests --count --select=E9,F63,F7,F82 --show-source --statistics || true
+          # 복잡도 체크 (선택사항)
+          flake8 app tests --count --exit-zero --max-complexity=10 --statistics || true
+        continue-on-error: true
+
+      - name: 테스트 실행 및 커버리지 측정
+        run: |
+          pytest tests/ -v --cov=app --cov-report=term-missing --cov-report=xml
+
+      - name: 커버리지 리포트 업로드
+        uses: codecov/codecov-action@v3
+        if: matrix.python-version == '3.11'
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+        continue-on-error: true
+
+      - name: 테스트 결과 요약
+        if: always()
+        run: |
+          echo "## 테스트 결과 🧪" >> $GITHUB_STEP_SUMMARY
+          echo "Python 버전: ${{ matrix.python-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "상태: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 설정
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Ruff 린터 실행
+        run: |
+          pip install ruff
+          ruff check app tests || true
+        continue-on-error: true
