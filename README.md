@@ -31,7 +31,7 @@ Docker 기반으로 구성되어 어디서나 동일하게 실행됩니다.
 ```bash
 # 저장소 클론
 git clone <repository-url>
-cd ml-api-demo
+cd ops_demo
 
 # 애플리케이션 실행
 docker-compose up -d
@@ -48,20 +48,20 @@ docker-compose down
 ### 2. Docker로 직접 실행
 ```bash
 # 이미지 빌드
-docker build -t ml-api-demo .
+docker build -t ops_demo .
 
 # 컨테이너 실행
 docker run -d \
-  --name ml-api \
+  --name ops \
   -p 8000:8000 \
-  ml-api-demo
+  ops_demo
 
 # 로그 확인
-docker logs -f ml-api
+docker logs -f ops
 
 # 종료
-docker stop ml-api
-docker rm ml-api
+docker stop ops
+docker rm ops
 ```
 
 ### 3. 개발 모드로 실행 (코드 변경 시 자동 반영)
@@ -91,7 +91,7 @@ docker-compose --profile test run --rm test
 docker run --rm \
   -v $(pwd)/tests:/app/tests \
   -v $(pwd)/app:/app/app \
-  ml-api-demo \
+  ops_demo \
   sh -c "pip install pytest httpx pytest-cov && \
          pytest tests/ -v"
 ```
@@ -176,8 +176,8 @@ main 브랜치에 푸시하면 자동으로:
 
 ```bash
 # 배포된 이미지 사용
-docker pull <your-dockerhub-username>/ml-api-demo:latest
-docker run -p 8000:8000 <your-dockerhub-username>/ml-api-demo:latest
+docker pull <your-dockerhub-username>/ops_demo:latest
+docker run -p 8000:8000 <your-dockerhub-username>/ops_demo:latest
 ```
 
 ## 🎓 MLOps로 확장하기
@@ -258,17 +258,17 @@ environment:
 docker-compose up
 
 # 컨테이너 내부 접속
-docker-compose exec api bash
+docker-compose exec ops bash
 
 # 로그 실시간 확인
-docker-compose logs -f api
+docker-compose logs -f ops
 ```
 
 ### 이미지 최적화
 
 현재 이미지 크기 확인:
 ```bash
-docker images ml-api-demo
+docker images ops_demo
 ```
 
 최적화 방법:
@@ -282,7 +282,7 @@ docker images ml-api-demo
 # Trivy로 취약점 스캔
 docker run --rm \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  aquasec/trivy image ml-api-demo:latest
+  aquasec/trivy image ops_demo:latest
 ```
 
 ## 📚 학습 리소스
