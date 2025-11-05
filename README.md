@@ -85,17 +85,6 @@ docker-compose --profile test run --rm test
 # ============================== 8 passed in 0.45s ===============================
 ```
 
-### 수동으로 테스트
-```bash
-# 테스트 컨테이너 실행
-docker run --rm \
-  -v $(pwd)/tests:/app/tests \
-  -v $(pwd)/app:/app/app \
-  ops_demo \
-  sh -c "pip install pytest httpx pytest-cov && \
-         pytest tests/ -v"
-```
-
 ## 📊 API 엔드포인트
 
 ### GET /
