@@ -7,6 +7,7 @@ Docker 기반으로 구성되어 어디서나 동일하게 실행됩니다.
 
 이 프로젝트는 다음을 시연합니다:
 - ✅ Docker를 활용한 일관된 실행 환경
+- ✅ VS Code Dev Container로 통합 개발 환경
 - ✅ CI/CD 파이프라인 구성
 - ✅ 자동화된 테스트 및 빌드
 - ✅ 컨테이너 이미지 레지스트리 배포
@@ -26,6 +27,35 @@ Docker 기반으로 구성되어 어디서나 동일하게 실행됩니다.
 ### 사전 요구사항
 - Docker 설치 (https://www.docker.com/get-started)
 - Docker Compose 설치 (Docker Desktop에 포함)
+
+### 0. VS Code Dev Container로 실행 (개발자 추천! 🎯)
+VS Code에서 완전히 통합된 개발 환경을 제공합니다.
+
+```bash
+# VS Code에서 프로젝트 열기
+code .
+
+# 명령 팔레트 열기 (Cmd/Ctrl + Shift + P)
+# "Dev Containers: Reopen in Container" 선택
+
+# 또는 자동으로 팝업이 뜨면 "Reopen in Container" 클릭
+```
+
+**장점:**
+- ✅ 로컬에 Python 설치 불필요
+- ✅ 모든 팀원이 동일한 개발 환경
+- ✅ 자동 포트 포워딩 (8000)
+- ✅ 통합 터미널, 디버깅, 테스트 지원
+- ✅ 자동 코드 포맷팅 및 린팅
+
+컨테이너가 시작되면:
+```bash
+# 서버 실행
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+# 테스트 실행
+pytest tests/ -v --cov=app --cov-report=term-missing
+```
 
 ### 1. Docker Compose로 실행 (가장 간단!)
 ```bash
