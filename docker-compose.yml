@@ -1,0 +1,37 @@
+services:
+  ops:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ops_demo
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=info
+    volumes:
+      # 개발 시 코드 변경사항 즉시 반영 (프로덕션에서는 제거)
+      - ./app:/app/app
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # 테스트 서비스 (개발/CI 용)
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ops_test
+    command: >
+      sh -c "pip install -r requirements-dev.txt &&
+             pytest tests/ -v --cov=app --cov-report=term-missing"
+    volumes:
+      - ./app:/app/app
+      - ./tests:/app/tests
+      - ./requirements-dev.txt:/app/requirements-dev.txt
+    profiles:
+      - test
