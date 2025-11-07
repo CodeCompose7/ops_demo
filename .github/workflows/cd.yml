@@ -34,11 +34,14 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          APP_PORT: ${{ secrets.APP_PORT }}
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
           VERSION: ${{ github.event.release.tag_name }}
         run: |
           # SSH 포트 설정 (기본값: 22)
           SSH_PORT=${DEPLOY_PORT:-22}
+          # 애플리케이션 포트 설정 (기본값: 8000)
+          HOST_PORT=${APP_PORT:-8000}
 
           # 이미지 파일을 서버로 전송
           scp -P ${SSH_PORT} -o StrictHostKeyChecking=no image.tar.gz ${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/
@@ -56,10 +59,10 @@ jobs:
             docker stop ops_demo || true
             docker rm ops_demo || true
             
-            # 새 이미지로 컨테이너 시작
+            # 새 이미지로 컨테이너 시작 (호스트 포트: ${HOST_PORT}, 컨테이너 포트: 8000)
             docker run -d \
               --name ops_demo \
-              -p 8000:8000 \
+              -p ${HOST_PORT}:8000 \
               -e ENVIRONMENT=production \
               -e LOG_LEVEL=info \
               --restart unless-stopped \
@@ -86,9 +89,13 @@ jobs:
           EOF
 
       - name: 배포 결과 요약
+        env:
+          APP_PORT: ${{ secrets.APP_PORT }}
         run: |
+          HOST_PORT=${APP_PORT:-8000}
           echo "## 배포 성공 🚀" >> $GITHUB_STEP_SUMMARY
           echo "**버전**: ${{ github.event.release.tag_name }}" >> $GITHUB_STEP_SUMMARY
           echo "서버: ${{ secrets.DEPLOY_HOST }}" >> $GITHUB_STEP_SUMMARY
+          echo "포트: ${HOST_PORT}" >> $GITHUB_STEP_SUMMARY
           echo "커밋: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "릴리스 노트: ${{ github.event.release.body }}" >> $GITHUB_STEP_SUMMARY
