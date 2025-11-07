@@ -1,0 +1,94 @@
+name: CD Pipeline
+
+on:
+  release:
+    types: [published]
+
+env:
+  IMAGE_NAME: ops-demo
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Docker 이미지를 tar 파일로 저장
+        run: |
+          # Release 태그를 버전으로 사용
+          VERSION=${{ github.event.release.tag_name }}
+          docker build -t ${{ env.IMAGE_NAME }}:${VERSION} -t ${{ env.IMAGE_NAME }}:latest .
+          docker save ${{ env.IMAGE_NAME }}:${VERSION} | gzip > image.tar.gz
+
+      - name: 서버에 SSH 키 설정
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: 서버에 배포
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          VERSION: ${{ github.event.release.tag_name }}
+        run: |
+          # SSH 포트 설정 (기본값: 22)
+          SSH_PORT=${DEPLOY_PORT:-22}
+
+          # 이미지 파일을 서버로 전송
+          scp -P ${SSH_PORT} -o StrictHostKeyChecking=no image.tar.gz ${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/
+
+          # 서버에서 이미지 로드 및 컨테이너 재시작
+          ssh -p ${SSH_PORT} -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} << EOF
+            # 기존 이미지 로드
+            docker load < /tmp/image.tar.gz
+            rm /tmp/image.tar.gz
+            
+            # 이미지 태그 설정
+            IMAGE_TAG=${IMAGE_NAME}:${VERSION}
+            
+            # 기존 컨테이너 중지 및 제거
+            docker stop ops_demo || true
+            docker rm ops_demo || true
+            
+            # 새 이미지로 컨테이너 시작
+            docker run -d \
+              --name ops_demo \
+              -p 8000:8000 \
+              -e ENVIRONMENT=production \
+              -e LOG_LEVEL=info \
+              --restart unless-stopped \
+              \${IMAGE_TAG}
+            
+            # 불필요한 이미지 정리
+            docker image prune -f
+          EOF
+
+      - name: 배포 결과 확인
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          # SSH 포트 설정 (기본값: 22)
+          SSH_PORT=${DEPLOY_PORT:-22}
+          ssh -p ${SSH_PORT} -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} << 'EOF'
+            echo "--- 실행 중인 컨테이너 ---"
+            docker ps --filter "name=ops_demo" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+            echo ""
+            echo "--- 컨테이너 로그 (최근 20줄) ---"
+            docker logs --tail=20 ops_demo || echo "컨테이너가 아직 시작되지 않았습니다."
+          EOF
+
+      - name: 배포 결과 요약
+        run: |
+          echo "## 배포 성공 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "**버전**: ${{ github.event.release.tag_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "서버: ${{ secrets.DEPLOY_HOST }}" >> $GITHUB_STEP_SUMMARY
+          echo "커밋: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "릴리스 노트: ${{ github.event.release.body }}" >> $GITHUB_STEP_SUMMARY
