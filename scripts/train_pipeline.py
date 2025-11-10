@@ -9,6 +9,50 @@ from sklearn.model_selection import train_test_split
 class IrisMLPipeline:
     """간단하지만 완전한 ML 파이프라인"""
 
+    def preprocess_data(self, X):
+        """Iris 데이터셋 전처리: 이상치 탐지 및 선택적 스케일링"""
+        # DataFrame으로 변환 (이상치 탐지용)
+        df = pd.DataFrame(
+            X,
+            columns=[
+                "sepal_length",
+                "sepal_width",
+                "petal_length",
+                "petal_width",
+            ],
+        )
+
+        # 이상치 탐지 (IQR 방법)
+        print("  → 이상치 탐지 중...")
+        Q1 = df.quantile(0.25)
+        Q3 = df.quantile(0.75)
+        IQR = Q3 - Q1
+        lower_bound = Q1 - 1.5 * IQR
+        upper_bound = Q3 + 1.5 * IQR
+
+        # 이상치가 있는 행 찾기
+        outliers = ((df < lower_bound) | (df > upper_bound)).any(axis=1)
+        outlier_count = outliers.sum()
+
+        if outlier_count > 0:
+            print(
+                f"  → 이상치 {outlier_count}개 발견 "
+                "(제거하지 않음 - Iris 데이터는 정상 범위)"
+            )
+        else:
+            print("  → 이상치 없음")
+
+        # 특성 스케일링 (선택사항 - RandomForest는 스케일링이 필요 없지만 일반적인 파이프라인)
+        # 주석 처리: RandomForest는 스케일링이 필요 없으므로 생략
+        # scaler = StandardScaler()
+        # X_scaled = scaler.fit_transform(X)
+        # print("  → 특성 스케일링 완료 (StandardScaler)")
+
+        # Iris 데이터는 이미 정규화가 잘 되어있으므로 스케일링 생략
+        print("  → 전처리 완료 (Iris 데이터는 추가 스케일링 불필요)")
+
+        return X
+
     def data_pipeline(self):
         """데이터 파이프라인: 수집 → 검증 → 전처리 → 분할"""
 
@@ -23,6 +67,11 @@ class IrisMLPipeline:
         assert X.shape[0] > 0, "데이터가 비어있습니다"
         assert not pd.DataFrame(X).isnull().any().any(), "결측치 발견"
 
+        # 전처리
+        print("  → 데이터 전처리")
+        X = self.preprocess_data(X)
+
+        # 데이터 분할
         print("  → 데이터 분할 (Train: 80%, Test: 20%)")
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=0.2, random_state=42
