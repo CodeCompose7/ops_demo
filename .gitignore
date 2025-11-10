@@ -39,3 +39,16 @@ coverage.xml
 # OS
 .DS_Store
 Thumbs.db
+
+# ML Models (큰 용량, 버전 관리 별도 필요)
+models/
+*.pkl
+*.joblib
+*.h5
+*.onnx
+*.pt
+*.pth
+
+# 하지만 모델 구조는 추적
+!models/.gitkeep
+!models/README.md
