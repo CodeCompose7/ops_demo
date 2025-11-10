@@ -1,13 +1,50 @@
+from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import List
 
+import joblib
 import numpy as np
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, ConfigDict
+
+# 전역 변수
+MODEL = None
+MODEL_INFO = None
+
+
+def load_model():
+    """앱 시작 시 모델 로드"""
+    global MODEL, MODEL_INFO
+
+    model_path = Path("models/model.pkl")
+    model_artifact = joblib.load(model_path)
+
+    MODEL = model_artifact["model"]
+    MODEL_INFO = {
+        "version": model_artifact["version"],
+        "metrics": model_artifact["metrics"],
+        "feature_names": model_artifact["feature_names"],
+        "target_names": model_artifact["target_names"],
+        "created_at": model_artifact["created_at"],
+    }
+
+    print(f"✅ 모델 로드: {MODEL_INFO['version']}")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """애플리케이션 생명주기 관리"""
+    # Startup: 앱 시작 시 실행
+    load_model()
+    yield
+    # Shutdown: 앱 종료 시 실행 (필요시 정리 작업)
+
 
 app = FastAPI(
     title="ML Prediction API Demo",
     description="DevOps 강의를 위한 간단한 예측 API",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 
@@ -27,6 +64,8 @@ class PredictionOutput(BaseModel):
     """예측 결과 모델"""
 
     prediction: float
+    prediction_name: str
+    probability: List[float]
     model_version: str
 
     model_config = {"protected_namespaces": ()}
@@ -44,60 +83,48 @@ def read_root():
 
 @app.get("/health")
 def health_check():
-    """헬스 체크 엔드포인트"""
-    return {"status": "healthy", "service": "ml-api"}
+    """헬스 체크 - 모델 로드 상태 확인"""
+    model_healthy = MODEL is not None
 
-
-@app.post("/predict", response_model=PredictionOutput)
-def predict(input_data: PredictionInput):
-    """
-    예측 엔드포인트
-
-    현재는 간단한 계산을 수행하지만,
-    나중에 실제 ML 모델(scikit-learn, TensorFlow 등)로 대체 가능
-    """
-    try:
-        # 빈 features 배열 검증
-        if not input_data.features:
-            raise HTTPException(
-                status_code=400,
-                detail="features list cannot be empty",
-            )
-
-        # 간단한 예측 로직 (실제로는 ML 모델 추론)
-        features = np.array(input_data.features)
-
-        # 예시: 단순 가중 평균 계산
-        # 실제 환경에서는 model.predict(features)로 대체
-        prediction_value = float(np.mean(features) * 1.5)
-
-        # NaN 체크 (혹시 모를 경우를 대비)
-        if np.isnan(prediction_value):
-            raise HTTPException(
-                status_code=400,
-                detail="invalid input: cannot compute prediction",
-            )
-
-        return PredictionOutput(
-            prediction=prediction_value, model_version="v1.0-simple"
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"prediction failed: {str(e)}",
-        )
+    return {
+        "status": "healthy" if model_healthy else "degraded",
+        "service": "ml-api",
+        "model_loaded": model_healthy,
+    }
 
 
 @app.get("/model/info")
 def model_info():
-    """모델 정보 엔드포인트"""
+    """모델 정보 조회 - 버전, 메트릭, 특성"""
+    if MODEL is None:
+        return {"model_loaded": False}
+
     return {
-        "model_name": "SimplePredictor",
-        "model_version": "v1.0",
-        "framework": "numpy",
-        "input_features": 4,
-        "description": "간단한 예측 모델 (추후 실제 ML 모델로 교체 예정)",
+        "model_loaded": True,
+        "model_version": MODEL_INFO["version"],
+        "framework": "scikit-learn",
+        "feature_names": MODEL_INFO["feature_names"],
+        "metrics": MODEL_INFO["metrics"],
+        "created_at": MODEL_INFO["created_at"],
     }
+
+
+@app.post("/predict", response_model=PredictionOutput)
+def predict(input_data: PredictionInput):
+    """실제 ML 모델로 예측"""
+
+    # 입력 검증
+    if len(input_data.features) != 4:
+        raise HTTPException(400, "4개 특성 필요")
+
+    # 예측
+    features = np.array(input_data.features).reshape(1, -1)
+    prediction = MODEL.predict(features)[0]
+    probabilities = MODEL.predict_proba(features)[0]
+
+    return PredictionOutput(
+        prediction=int(prediction),
+        prediction_name=MODEL_INFO["target_names"][prediction],
+        probability=probabilities.tolist(),
+        model_version=MODEL_INFO["version"],
+    )
