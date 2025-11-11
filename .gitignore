@@ -52,3 +52,6 @@ models/
 # 하지만 모델 구조는 추적
 !models/.gitkeep
 !models/README.md
+
+# MLflow
+mlruns/

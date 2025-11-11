@@ -12,6 +12,10 @@ services:
     volumes:
       # 개발 시 코드 변경사항 즉시 반영 (프로덕션에서는 제거)
       - ./app:/app/app
+      # MLflow 실험 로그 영구 보존
+      - ./mlruns:/app/mlruns
+      # 모델 파일 영구 보존
+      - ./models:/app/models
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
