@@ -28,7 +28,15 @@ def load_model():
         "created_at": model_artifact["created_at"],
     }
 
+    # MLflow run_id가 있으면 추가
+    if "mlflow_run_id" in model_artifact:
+        MODEL_INFO["mlflow_run_id"] = model_artifact["mlflow_run_id"]
+    if "params" in model_artifact:
+        MODEL_INFO["params"] = model_artifact["params"]
+
     print(f"✅ 모델 로드: {MODEL_INFO['version']}")
+    if "mlflow_run_id" in MODEL_INFO:
+        print(f"   MLflow Run ID: {MODEL_INFO['mlflow_run_id']}")
 
 
 @asynccontextmanager
@@ -99,7 +107,7 @@ def model_info():
     if MODEL is None:
         return {"model_loaded": False}
 
-    return {
+    response = {
         "model_loaded": True,
         "model_version": MODEL_INFO["version"],
         "framework": "scikit-learn",
@@ -107,6 +115,15 @@ def model_info():
         "metrics": MODEL_INFO["metrics"],
         "created_at": MODEL_INFO["created_at"],
     }
+
+    # MLflow 정보가 있으면 추가
+    if "mlflow_run_id" in MODEL_INFO:
+        response["mlflow_run_id"] = MODEL_INFO["mlflow_run_id"]
+        response["mlflow_ui_url"] = "http://localhost:5000"
+    if "params" in MODEL_INFO:
+        response["hyperparameters"] = MODEL_INFO["params"]
+
+    return response
 
 
 @app.post("/predict", response_model=PredictionOutput)
