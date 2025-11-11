@@ -3,8 +3,11 @@ from pathlib import Path
 from typing import List
 
 import joblib
+import mlflow
+import mlflow.sklearn
 import numpy as np
 from fastapi import FastAPI, HTTPException
+from mlflow.tracking import MlflowClient
 from pydantic import BaseModel, ConfigDict
 
 # 전역 변수
@@ -13,30 +16,139 @@ MODEL_INFO = None
 
 
 def load_model():
-    """앱 시작 시 모델 로드"""
+    """MLflow 또는 로컬 파일에서 모델 로드"""
     global MODEL, MODEL_INFO
 
+    # 1순위: MLflow에서 프로덕션 모델 로드
+    client = MlflowClient()
+
+    # 프로덕션 → Staging → 최신 버전 순으로 시도
+    stages_to_try = ["Production", "Staging", None]
+
+    for stage in stages_to_try:
+        try:
+            if stage:
+                model_uri = f"models:/iris-classifier/{stage}"
+                latest_versions = client.get_latest_versions(
+                    "iris-classifier", stages=[stage]
+                )
+            else:
+                # 스테이지가 없으면 최신 버전 사용
+                latest_versions = client.get_latest_versions("iris-classifier")
+                if not latest_versions:
+                    continue
+                # 버전 번호가 가장 큰 것 선택
+                latest_version = max(
+                    latest_versions,
+                    key=lambda v: int(v.version),
+                )
+                model_uri = f"models:/iris-classifier/{latest_version.version}"
+                version_info = latest_version
+                run = client.get_run(version_info.run_id)
+                model = mlflow.sklearn.load_model(model_uri=model_uri)
+
+                MODEL = model
+                MODEL_INFO = {
+                    "version": f"mlflow-v{version_info.version}",
+                    "metrics": run.data.metrics,
+                    "source": "mlflow",
+                    "run_id": version_info.run_id,
+                    "stage": version_info.current_stage or "None",
+                    "feature_names": [
+                        "sepal_length",
+                        "sepal_width",
+                        "petal_length",
+                        "petal_width",
+                    ],
+                    "target_names": ["setosa", "versicolor", "virginica"],
+                }
+
+                # 파라미터 정보 추가
+                if run.data.params:
+                    MODEL_INFO["params"] = run.data.params
+
+                print(f"✅ MLflow 모델 로드 (latest): v{version_info.version}")
+                print(f"   MLflow Run ID: {version_info.run_id}")
+                return
+
+            if not latest_versions:
+                continue
+
+            model = mlflow.sklearn.load_model(model_uri=model_uri)
+            version_info = latest_versions[0]
+            run = client.get_run(version_info.run_id)
+
+            MODEL = model
+            MODEL_INFO = {
+                "version": f"mlflow-v{version_info.version}",
+                "metrics": run.data.metrics,
+                "source": "mlflow",
+                "run_id": version_info.run_id,
+                "stage": version_info.current_stage or "None",
+                "feature_names": [
+                    "sepal_length",
+                    "sepal_width",
+                    "petal_length",
+                    "petal_width",
+                ],
+                "target_names": ["setosa", "versicolor", "virginica"],
+            }
+
+            # 파라미터 정보 추가
+            if run.data.params:
+                MODEL_INFO["params"] = run.data.params
+
+            stage_name = stage or "latest"
+            print(f"✅ MLflow 모델 로드 ({stage_name}): v{version_info.version}")
+            print(f"   MLflow Run ID: {version_info.run_id}")
+            return
+
+        except Exception as e:
+            if stage == stages_to_try[-1]:  # 마지막 시도에서만 경고 출력
+                print(f"⚠️ MLflow 로드 실패: {e}")
+            continue
+
+    # 2순위: 로컬 파일에서 모델 로드 (기존 방식)
     model_path = Path("models/model.pkl")
-    model_artifact = joblib.load(model_path)
+    if model_path.exists():
+        model_artifact = joblib.load(model_path)
 
-    MODEL = model_artifact["model"]
-    MODEL_INFO = {
-        "version": model_artifact["version"],
-        "metrics": model_artifact["metrics"],
-        "feature_names": model_artifact["feature_names"],
-        "target_names": model_artifact["target_names"],
-        "created_at": model_artifact["created_at"],
-    }
+        MODEL = model_artifact["model"]
+        MODEL_INFO = {
+            "version": model_artifact["version"],
+            "metrics": model_artifact["metrics"],
+            "source": "local",
+            "created_at": model_artifact.get("created_at", "unknown"),
+            "feature_names": model_artifact.get(
+                "feature_names",
+                [
+                    "sepal_length",
+                    "sepal_width",
+                    "petal_length",
+                    "petal_width",
+                ],
+            ),
+            "target_names": model_artifact.get(
+                "target_names",
+                [
+                    "setosa",
+                    "versicolor",
+                    "virginica",
+                ],
+            ),
+        }
 
-    # MLflow run_id가 있으면 추가
-    if "mlflow_run_id" in model_artifact:
-        MODEL_INFO["mlflow_run_id"] = model_artifact["mlflow_run_id"]
-    if "params" in model_artifact:
-        MODEL_INFO["params"] = model_artifact["params"]
+        # MLflow run_id가 있으면 추가
+        if "mlflow_run_id" in model_artifact:
+            MODEL_INFO["mlflow_run_id"] = model_artifact["mlflow_run_id"]
+        if "params" in model_artifact:
+            MODEL_INFO["params"] = model_artifact["params"]
 
-    print(f"✅ 모델 로드: {MODEL_INFO['version']}")
-    if "mlflow_run_id" in MODEL_INFO:
-        print(f"   MLflow Run ID: {MODEL_INFO['mlflow_run_id']}")
+        print(f"✅ 로컬 모델 로드: {MODEL_INFO['version']}")
+        if "mlflow_run_id" in MODEL_INFO:
+            print(f"   MLflow Run ID: {MODEL_INFO['mlflow_run_id']}")
+    else:
+        raise FileNotFoundError("모델을 찾을 수 없습니다!")
 
 
 @asynccontextmanager
@@ -111,10 +223,14 @@ def model_info():
         "model_loaded": True,
         "model_version": MODEL_INFO["version"],
         "framework": "scikit-learn",
+        "source": MODEL_INFO.get("source", "unknown"),
         "feature_names": MODEL_INFO["feature_names"],
         "metrics": MODEL_INFO["metrics"],
-        "created_at": MODEL_INFO["created_at"],
     }
+
+    # 생성 시간 정보 추가
+    if "created_at" in MODEL_INFO:
+        response["created_at"] = MODEL_INFO["created_at"]
 
     # MLflow 정보가 있으면 추가
     if "mlflow_run_id" in MODEL_INFO:
@@ -124,6 +240,66 @@ def model_info():
         response["hyperparameters"] = MODEL_INFO["params"]
 
     return response
+
+
+@app.post("/model/reload")
+def reload_model():
+    """모델 리로드 - MLflow에서 최신 프로덕션 모델 로드"""
+    try:
+        load_model()
+        return {
+            "status": "success",
+            "message": "모델이 성공적으로 리로드되었습니다",
+            "model_version": MODEL_INFO["version"],
+            "source": MODEL_INFO.get("source", "unknown"),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"모델 리로드 실패: {str(e)}")
+
+
+@app.get("/model/experiments")
+def list_experiments():
+    """MLflow 실험 목록 조회"""
+    try:
+        client = MlflowClient()
+        experiments = client.search_experiments()
+
+        return {
+            "experiments": [
+                {
+                    "experiment_id": exp.experiment_id,
+                    "name": exp.name,
+                    "lifecycle_stage": exp.lifecycle_stage,
+                    "artifact_location": exp.artifact_location,
+                }
+                for exp in experiments
+            ]
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/model/versions")
+def list_model_versions():
+    """모델 버전 목록 조회"""
+    try:
+        client = MlflowClient()
+        versions = client.get_latest_versions("iris-classifier")
+
+        return {
+            "model_name": "iris-classifier",
+            "versions": [
+                {
+                    "version": v.version,
+                    "stage": v.current_stage,
+                    "run_id": v.run_id,
+                    "creation_timestamp": v.creation_timestamp,
+                }
+                for v in versions
+            ],
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @app.post("/predict", response_model=PredictionOutput)
