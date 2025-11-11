@@ -36,6 +36,8 @@ services:
     volumes:
       - ./app:/app/app
       - ./tests:/app/tests
+      - ./scripts:/app/scripts
+      - ./requirements.txt:/app/requirements.txt
       - ./requirements-dev.txt:/app/requirements-dev.txt
     profiles:
       - test
