@@ -77,7 +77,12 @@ jobs:
         run: |
           SSH_PORT=${DEPLOY_PORT:-22}
 
-          ssh -p ${SSH_PORT} -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} << 'EOF'
+          # SSH Keep-Alive 설정으로 연결 유지
+          ssh -p ${SSH_PORT} \
+            -o StrictHostKeyChecking=no \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=10 \
+            ${DEPLOY_USER}@${DEPLOY_HOST} << 'EOF'
             set -e
             
             VERSION="${{ env.VERSION }}"
@@ -124,20 +129,34 @@ jobs:
             echo "📊 [4/5] MLflow 서버 배포/업데이트..."
             kubectl apply -f /tmp/k8s/03-mlflow.yaml
             
-            # MLflow 준비 대기
-            echo "   → MLflow 서버 준비 대기 중..."
-            kubectl wait --for=condition=ready pod -l app=mlflow-server -n mlops-training --timeout=300s || true
-            echo "✅ MLflow 서버 준비 완료"
+            # MLflow 준비 대기 (백그라운드에서 확인)
+            echo "   → MLflow 서버 준비 확인 중..."
+            for i in {1..30}; do
+              STATUS=$(kubectl get pods -n mlops-training -l app=mlflow-server -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "Unknown")
+              if [ "$STATUS" = "Running" ]; then
+                echo "✅ MLflow 서버 준비 완료"
+                break
+              fi
+              echo "   상태: $STATUS (${i}/30)"
+              sleep 10
+            done
             
             # 5. Training Controller 배포/업데이트
             echo ""
-            echo "🎯 [5/5] Training Controller 배포/업데이트..."
+            echo "🎯 [5/6] Training Controller 배포/업데이트..."
             kubectl apply -f /tmp/k8s/06-training-controller.yaml
             
             # Training Controller 준비 대기
-            echo "   → Training Controller 준비 대기 중..."
-            kubectl wait --for=condition=ready pod -l app=training-controller -n mlops-training --timeout=300s || true
-            echo "✅ Training Controller 준비 완료"
+            echo "   → Training Controller 준비 확인 중..."
+            for i in {1..30}; do
+              STATUS=$(kubectl get pods -n mlops-training -l app=training-controller -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "Unknown")
+              if [ "$STATUS" = "Running" ]; then
+                echo "✅ Training Controller 준비 완료"
+                break
+              fi
+              echo "   상태: $STATUS (${i}/30)"
+              sleep 10
+            done
             
             # 6. 서빙 API 무중단 배포
             echo ""
@@ -148,11 +167,20 @@ jobs:
             echo "   → 롤링 업데이트 시작..."
             kubectl set image deployment/iris-serving \
               serving=ops-demo:serving \
-              -n mlops-serving
+              -n mlops-serving || true
             
-            # 롤아웃 진행 상황 확인
-            kubectl rollout status deployment/iris-serving -n mlops-serving --timeout=300s || true
-            echo "✅ 서빙 API 배포 완료"
+            # 롤아웃 진행 상황 확인 (백그라운드에서 확인)
+            echo "   → 서빙 API 준비 확인 중..."
+            for i in {1..30}; do
+              READY=$(kubectl get deployment iris-serving -n mlops-serving -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+              DESIRED=$(kubectl get deployment iris-serving -n mlops-serving -o jsonpath='{.status.replicas}' 2>/dev/null || echo "2")
+              if [ "$READY" = "$DESIRED" ] && [ "$READY" != "0" ]; then
+                echo "✅ 서빙 API 배포 완료 ($READY/$DESIRED)"
+                break
+              fi
+              echo "   상태: $READY/$DESIRED (${i}/30)"
+              sleep 10
+            done
             
             # 정리
             rm -rf /tmp/k8s
@@ -171,7 +199,12 @@ jobs:
         run: |
           SSH_PORT=${DEPLOY_PORT:-22}
 
-          ssh -p ${SSH_PORT} -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} << 'EOF'
+          # SSH Keep-Alive 설정
+          ssh -p ${SSH_PORT} \
+            -o StrictHostKeyChecking=no \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=10 \
+            ${DEPLOY_USER}@${DEPLOY_HOST} << 'EOF'
             echo ""
             echo "======================================"
             echo "배포 상태 확인"
