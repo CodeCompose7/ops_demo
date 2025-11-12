@@ -59,7 +59,7 @@ jobs:
             
             # 항상 최신 상태로 업데이트 (태그 포함)
             echo "  → 최신 코드 및 태그 가져오기..."
-            git fetch --all --tags --prune
+            git fetch --all --tags --prune --force
             
             # Release 태그로 강제 전환
             echo "  → Release ${VERSION}로 전환 중..."
