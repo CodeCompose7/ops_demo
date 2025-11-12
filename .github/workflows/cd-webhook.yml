@@ -126,14 +126,17 @@ jobs:
             # PersistentVolume의 hostPath를 실제 경로로 치환하여 적용
             sed "s|/data/mlops|$STORAGE_DIR|g" 02-storage.yaml | kubectl apply -f -
             
-            # MLflow 배포 (이미지 태그 업데이트)
-            kubectl set image deployment/mlflow-server mlflow=ops-demo:training-${VERSION} -n mlops-training
+            # MLflow 배포
             kubectl apply -f 03-mlflow.yaml
+            kubectl set image deployment/mlflow-server mlflow=ops-demo:training-${VERSION} -n mlops-training
+            # YAML 변경사항 적용을 위해 Pod 재시작
+            kubectl rollout restart deployment/mlflow-server -n mlops-training
             echo "  ✓ MLflow 배포 완료"
             
-            # Training Controller 배포 (이미지 태그 업데이트)
-            kubectl set image deployment/training-controller controller=ops-demo:training-controller-${VERSION} -n mlops-training
+            # Training Controller 배포
             kubectl apply -f 06-training-controller.yaml
+            kubectl set image deployment/training-controller controller=ops-demo:training-controller-${VERSION} -n mlops-training
+            kubectl rollout restart deployment/training-controller -n mlops-training
             echo "  ✓ Training Controller 배포 완료"
             
             # Serving API 무중단 배포 (이미지 태그 업데이트)
