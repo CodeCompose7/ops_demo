@@ -104,7 +104,7 @@ spec:
   ports:
   - port: 8080
     targetPort: 8080
-    nodePort: 30080  # localhost:30080으로 접근 가능
+    nodePort: 30081  # localhost:30081으로 접근 가능 (30080 대신)
     protocol: TCP
     name: http
 

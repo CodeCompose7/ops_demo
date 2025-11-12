@@ -74,7 +74,7 @@ spec:
   ports:
   - port: 5000
     targetPort: 5000
-    nodePort: 30500  # localhost:30500으로 접근 가능
+    nodePort: 30501  # localhost:30501으로 접근 가능
     protocol: TCP
     name: http
 

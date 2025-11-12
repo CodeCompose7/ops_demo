@@ -89,7 +89,7 @@ spec:
   ports:
   - port: 80
     targetPort: 8000
-    nodePort: 30800  # localhost:30800으로 접근 가능
+    nodePort: 30801  # localhost:30801으로 접근 가능
     protocol: TCP
     name: http
 

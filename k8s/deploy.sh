@@ -137,32 +137,19 @@ echo "======================================"
 echo "접속 정보"
 echo "======================================"
 
-# Training Controller 포트포워딩 안내
-CONTROLLER_POD=$(kubectl get pod -n mlops-training -l app=training-controller -o jsonpath='{.items[0].metadata.name}')
+# 접속 정보 (NodePort 사용)
 echo ""
 echo "🎯 Training Controller UI (웹에서 훈련 시작):"
-echo "   kubectl port-forward -n mlops-training $CONTROLLER_POD 8080:8080"
-echo "   → http://localhost:8080"
+echo "   http://localhost:30081"
 
-# MLflow UI 포트포워딩 안내
-MLFLOW_POD=$(kubectl get pod -n mlops-training -l app=mlflow-server -o jsonpath='{.items[0].metadata.name}')
 echo ""
 echo "📊 MLflow UI (실험 추적):"
-echo "   kubectl port-forward -n mlops-training $MLFLOW_POD 5000:5000"
-echo "   → http://localhost:5000"
-
-# 서빙 API 접속 정보
-EXTERNAL_IP=$(kubectl get svc iris-serving-service -n mlops-serving -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-if [ -z "$EXTERNAL_IP" ]; then
-    EXTERNAL_IP="<pending>"
-fi
+echo "   http://localhost:30501"
 
 echo ""
 echo "🚀 Serving API:"
-echo "   External IP: $EXTERNAL_IP"
-echo "   또는 포트포워딩:"
-echo "   kubectl port-forward -n mlops-serving svc/iris-serving-service 8000:80"
-echo "   → http://localhost:8000/docs"
+echo "   http://localhost:30801"
+echo "   Swagger UI: http://localhost:30801/docs"
 
 echo ""
 echo "======================================"
@@ -170,14 +157,13 @@ echo "다음 단계"
 echo "======================================"
 echo ""
 echo "1. 웹 UI에서 모델 훈련 (추천!):"
-echo "   kubectl port-forward -n mlops-training $CONTROLLER_POD 8080:8080"
-echo "   브라우저에서 http://localhost:8080 접속"
+echo "   브라우저에서 http://localhost:30081 접속"
 echo ""
 echo "2. 또는 명령어로 훈련:"
 echo "   ./k8s/train.sh --n-estimators 200 --max-depth 20 --run-name 'my-experiment'"
 echo ""
 echo "3. API 테스트:"
-echo "   curl -X POST http://localhost:8000/predict \\"
+echo "   curl -X POST http://localhost:30801/predict \\"
 echo "     -H 'Content-Type: application/json' \\"
 echo "     -d '{\"features\": [5.1, 3.5, 1.4, 0.2]}'"
 echo ""

@@ -24,21 +24,21 @@ echo -e "${YELLOW}→ 서비스 타입을 NodePort로 변경 중...${NC}"
 echo ""
 
 # Training Controller
-echo "1. Training Controller (port 30080)"
+echo "1. Training Controller (port 30081)"
 kubectl patch svc training-controller-service -n mlops-training \
-  -p '{"spec": {"type": "NodePort", "ports": [{"port": 8080, "targetPort": 8080, "nodePort": 30080, "protocol": "TCP", "name": "http"}]}}'
+  -p '{"spec": {"type": "NodePort", "ports": [{"port": 8080, "targetPort": 8080, "nodePort": 30081, "protocol": "TCP", "name": "http"}]}}'
 echo -e "   ${GREEN}✓${NC} 완료"
 
 # MLflow
-echo "2. MLflow (port 30500)"
+echo "2. MLflow (port 30501)"
 kubectl patch svc mlflow-service -n mlops-training \
-  -p '{"spec": {"type": "NodePort", "ports": [{"port": 5000, "targetPort": 5000, "nodePort": 30500, "protocol": "TCP", "name": "http"}]}}'
+  -p '{"spec": {"type": "NodePort", "ports": [{"port": 5000, "targetPort": 5000, "nodePort": 30501, "protocol": "TCP", "name": "http"}]}}'
 echo -e "   ${GREEN}✓${NC} 완료"
 
 # Serving API
-echo "3. Serving API (port 30800)"
+echo "3. Serving API (port 30801)"
 kubectl patch svc iris-serving-service -n mlops-serving \
-  -p '{"spec": {"type": "NodePort", "ports": [{"port": 80, "targetPort": 8000, "nodePort": 30800, "protocol": "TCP", "name": "http"}]}}'
+  -p '{"spec": {"type": "NodePort", "ports": [{"port": 80, "targetPort": 8000, "nodePort": 30801, "protocol": "TCP", "name": "http"}]}}'
 echo -e "   ${GREEN}✓${NC} 완료"
 
 echo ""
@@ -58,14 +58,14 @@ echo "접속 정보 (localhost)"
 echo "======================================"
 echo ""
 echo "🎯 Training Controller UI:"
-echo "   http://localhost:30080"
+echo "   http://localhost:30081"
 echo ""
 echo "📊 MLflow UI:"
-echo "   http://localhost:30500"
+echo "   http://localhost:30501"
 echo ""
 echo "🚀 Serving API:"
-echo "   http://localhost:30800"
-echo "   Swagger UI: http://localhost:30800/docs"
+echo "   http://localhost:30801"
+echo "   Swagger UI: http://localhost:30801/docs"
 echo ""
 echo "======================================"
 echo ""
