@@ -20,48 +20,52 @@ spec:
         component: tracking
     spec:
       containers:
-      - name: mlflow
-        image: ops-demo:training
-        command:
-        - mlflow
-        - server
-        - --host=0.0.0.0
-        - --port=5000
-        - --backend-store-uri=sqlite:////data/mlflow.db
-        - --default-artifact-root=/data/mlruns
-        - --serve-artifacts
-        env:
-        - name: GUNICORN_CMD_ARGS
-          value: "--timeout 60 --forwarded-allow-ips='*'"
-        ports:
-        - containerPort: 5000
-          name: http
-        volumeMounts:
-        - name: mlops-storage
-          mountPath: /data
-        resources:
-          requests:
-            cpu: "200m"
-            memory: "512Mi"
-          limits:
-            cpu: "500m"
-            memory: "1Gi"
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 5000
-          initialDelaySeconds: 30
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: 5000
-          initialDelaySeconds: 10
-          periodSeconds: 5
+        - name: mlflow
+          image: ops-demo:training
+          command:
+            - sh
+            - -c
+            - |
+              export GUNICORN_CMD_ARGS="--timeout 60 --workers 1 --forwarded-allow-ips='*' --access-logfile -"
+              mlflow server \
+                --host 0.0.0.0 \
+                --port 5000 \
+                --backend-store-uri sqlite:////data/mlflow.db \
+                --default-artifact-root /data/mlruns \
+                --serve-artifacts \
+                --gunicorn-opts "--timeout 60 --workers 1 --forwarded-allow-ips='*'"
+          env:
+            - name: MLFLOW_HOST
+              value: "0.0.0.0"
+          ports:
+            - containerPort: 5000
+              name: http
+          volumeMounts:
+            - name: mlops-storage
+              mountPath: /data
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 5
       volumes:
-      - name: mlops-storage
-        persistentVolumeClaim:
-          claimName: mlops-pvc
+        - name: mlops-storage
+          persistentVolumeClaim:
+            claimName: mlops-pvc
 
 ---
 apiVersion: v1
@@ -72,13 +76,12 @@ metadata:
   labels:
     app: mlflow-server
 spec:
-  type: NodePort  # NodePort로 변경 (localhost 접근 가능)
+  type: NodePort # NodePort로 변경 (localhost 접근 가능)
   selector:
     app: mlflow-server
   ports:
-  - port: 5000
-    targetPort: 5000
-    nodePort: 30501  # localhost:30501으로 접근 가능
-    protocol: TCP
-    name: http
-
+    - port: 5000
+      targetPort: 5000
+      nodePort: 30501 # localhost:30501으로 접근 가능
+      protocol: TCP
+      name: http

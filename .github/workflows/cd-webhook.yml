@@ -79,13 +79,16 @@ jobs:
             echo ""
             echo "🔨 [2/4] Docker 이미지 빌드..."
             
-            docker build -f Dockerfile.training -t ops-demo:training -t ops-demo:training-${VERSION} .
+            docker build -f Dockerfile.training -t ops-demo:training-${VERSION} .
+            docker tag ops-demo:training-${VERSION} ops-demo:training
             echo "  ✓ Training 이미지 빌드 완료"
             
-            docker build -f Dockerfile.serving -t ops-demo:serving -t ops-demo:serving-${VERSION} .
+            docker build -f Dockerfile.serving -t ops-demo:serving-${VERSION} .
+            docker tag ops-demo:serving-${VERSION} ops-demo:serving
             echo "  ✓ Serving 이미지 빌드 완료"
             
-            docker build -f training-controller/Dockerfile -t ops-demo:training-controller -t ops-demo:training-controller-${VERSION} training-controller/
+            docker build -f training-controller/Dockerfile -t ops-demo:training-controller-${VERSION} training-controller/
+            docker tag ops-demo:training-controller-${VERSION} ops-demo:training-controller
             echo "  ✓ Training Controller 이미지 빌드 완료"
             
             # 3. k3s에 이미지 import
@@ -93,14 +96,14 @@ jobs:
             echo "📦 [3/4] k3s에 이미지 import..."
             
             # k3s 그룹에 속한 사용자는 sudo 없이 실행 가능
-            docker save ops-demo:training | k3s ctr images import - 2>/dev/null || \
-              docker save ops-demo:training | sudo k3s ctr images import - 2>/dev/null || true
+            docker save ops-demo:training-${VERSION} | k3s ctr images import - 2>/dev/null || \
+              docker save ops-demo:training-${VERSION} | sudo k3s ctr images import - 2>/dev/null || true
             
-            docker save ops-demo:serving | k3s ctr images import - 2>/dev/null || \
-              docker save ops-demo:serving | sudo k3s ctr images import - 2>/dev/null || true
+            docker save ops-demo:serving-${VERSION} | k3s ctr images import - 2>/dev/null || \
+              docker save ops-demo:serving-${VERSION} | sudo k3s ctr images import - 2>/dev/null || true
             
-            docker save ops-demo:training-controller | k3s ctr images import - 2>/dev/null || \
-              docker save ops-demo:training-controller | sudo k3s ctr images import - 2>/dev/null || true
+            docker save ops-demo:training-controller-${VERSION} | k3s ctr images import - 2>/dev/null || \
+              docker save ops-demo:training-controller-${VERSION} | sudo k3s ctr images import - 2>/dev/null || true
             
             echo "✅ 이미지 import 완료"
             
@@ -123,18 +126,19 @@ jobs:
             # PersistentVolume의 hostPath를 실제 경로로 치환하여 적용
             sed "s|/data/mlops|$STORAGE_DIR|g" 02-storage.yaml | kubectl apply -f -
             
-            # MLflow 배포
+            # MLflow 배포 (이미지 태그 업데이트)
+            kubectl set image deployment/mlflow-server mlflow=ops-demo:training-${VERSION} -n mlops-training
             kubectl apply -f 03-mlflow.yaml
             echo "  ✓ MLflow 배포 완료"
             
-            # Training Controller 배포
+            # Training Controller 배포 (이미지 태그 업데이트)
+            kubectl set image deployment/training-controller training-controller=ops-demo:training-controller-${VERSION} -n mlops-training
             kubectl apply -f 06-training-controller.yaml
-            kubectl rollout restart deployment/training-controller -n mlops-training
             echo "  ✓ Training Controller 배포 완료"
             
-            # Serving API 무중단 배포
+            # Serving API 무중단 배포 (이미지 태그 업데이트)
+            kubectl set image deployment/iris-serving serving=ops-demo:serving-${VERSION} -n mlops-serving
             kubectl apply -f 05-serving.yaml
-            kubectl rollout restart deployment/iris-serving -n mlops-serving
             echo "  ✓ Serving API 배포 완료"
             
             echo ""
