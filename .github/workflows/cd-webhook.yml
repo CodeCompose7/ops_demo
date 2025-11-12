@@ -132,7 +132,7 @@ jobs:
             echo "  ✓ MLflow 배포 완료"
             
             # Training Controller 배포 (이미지 태그 업데이트)
-            kubectl set image deployment/training-controller training-controller=ops-demo:training-controller-${VERSION} -n mlops-training
+            kubectl set image deployment/training-controller controller=ops-demo:training-controller-${VERSION} -n mlops-training
             kubectl apply -f 06-training-controller.yaml
             echo "  ✓ Training Controller 배포 완료"
             
