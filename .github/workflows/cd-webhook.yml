@@ -123,11 +123,12 @@ jobs:
               mkdir -p $STORAGE_DIR
             fi
             
-            # 기존 PV 삭제 (PV는 immutable이므로 재생성 필요)
-            echo "  → 기존 PV 정리 중..."
-            kubectl delete pv mlops-shared-pv mlops-pv-training mlops-pv-serving --ignore-not-found=true
-            
             # PersistentVolume의 hostPath를 실제 경로로 치환하여 적용
+            # 참고: PV/PVC는 한 번 생성되면 계속 재사용됩니다.
+            #       수동 초기화가 필요한 경우:
+            #       kubectl delete pvc mlops-pvc -n mlops-training
+            #       kubectl delete pvc mlops-pvc -n mlops-serving
+            #       kubectl delete pv mlops-pv-training mlops-pv-serving
             sed "s|/data/mlops|$STORAGE_DIR|g" 02-storage.yaml | kubectl apply -f -
             echo "  ✓ 스토리지 구성 완료"
             
