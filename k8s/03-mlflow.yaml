@@ -33,7 +33,8 @@ spec:
                 --backend-store-uri sqlite:////data/mlflow.db \
                 --default-artifact-root /data/mlruns \
                 --serve-artifacts \
-                --gunicorn-opts "--timeout 60 --workers 1 --forwarded-allow-ips='*'"
+                --gunicorn-opts "--timeout 60 --workers 1 --forwarded-allow-ips='*'" \
+                --allowed-hosts "*"
           env:
             - name: MLFLOW_HOST
               value: "0.0.0.0"
