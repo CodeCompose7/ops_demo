@@ -21,38 +21,35 @@ spec:
     spec:
       restartPolicy: Never
       containers:
-      - name: training
-        image: ops-demo:training
-        command:
-        - python
-        - scripts/train_pipeline_mlflow.py
-        # 기본 하이퍼파라미터 (override 가능)
-        args:
-        - --n-estimators
-        - "100"
-        - --max-depth
-        - "5"
-        - --run-name
-        - "k8s-training"
-        env:
-        - name: MLFLOW_TRACKING_URI
-          value: "http://mlflow-service:5000"
-        - name: MLFLOW_ARTIFACT_URI
-          value: "file:///data/mlruns"
-        - name: PYTHONUNBUFFERED
-          value: "1"
-        volumeMounts:
-        - name: mlops-storage
-          mountPath: /data
-        resources:
-          requests:
-            cpu: "1000m"
-            memory: "2Gi"
-          limits:
-            cpu: "2000m"
-            memory: "4Gi"
+        - name: training
+          image: ops-demo:training
+          command:
+            - python
+            - scripts/train_pipeline_mlflow.py
+          # 기본 하이퍼파라미터 (override 가능)
+          args:
+            - --n-estimators
+            - "100"
+            - --max-depth
+            - "5"
+            - --run-name
+            - "k8s-training"
+          env:
+            - name: MLFLOW_TRACKING_URI
+              value: "file:///data"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          volumeMounts:
+            - name: mlops-storage
+              mountPath: /data
+          resources:
+            requests:
+              cpu: "1000m"
+              memory: "2Gi"
+            limits:
+              cpu: "2000m"
+              memory: "4Gi"
       volumes:
-      - name: mlops-storage
-        persistentVolumeClaim:
-          claimName: mlops-pvc
-
+        - name: mlops-storage
+          persistentVolumeClaim:
+            claimName: mlops-pvc
