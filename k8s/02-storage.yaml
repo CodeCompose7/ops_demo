@@ -1,5 +1,5 @@
 # 공유 스토리지 구성: 훈련된 모델과 MLflow 데이터를 공유
-# 
+#
 # 참고: /data/mlops 경로는 배포 시 자동으로 $HOME/ops-demo-data/mlops로 치환됩니다.
 # 배포 스크립트에서 sed 명령을 사용하여 동적으로 경로를 설정합니다.
 ---
@@ -31,6 +31,7 @@ spec:
   accessModes:
     - ReadWriteMany
   storageClassName: local-path
+  volumeName: mlops-shared-pv # 명시적으로 PV 지정
   resources:
     requests:
       storage: 2Gi
@@ -46,7 +47,7 @@ spec:
   accessModes:
     - ReadWriteMany
   storageClassName: local-path
+  volumeName: mlops-shared-pv # 같은 PV 공유 (RWX)
   resources:
     requests:
       storage: 2Gi
-
