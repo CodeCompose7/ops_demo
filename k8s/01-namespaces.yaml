@@ -1,0 +1,19 @@
+# 훈련 환경과 서빙 환경 분리를 위한 네임스페이스
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mlops-training
+  labels:
+    purpose: model-training
+    environment: mlops
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mlops-serving
+  labels:
+    purpose: model-serving
+    environment: mlops
+

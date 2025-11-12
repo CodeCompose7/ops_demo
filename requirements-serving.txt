@@ -1,0 +1,16 @@
+# FastAPI 서빙 프레임워크
+fastapi==0.121.1
+uvicorn[standard]==0.38.0
+pydantic==2.12.4
+
+# MLflow 클라이언트 (모델 로딩용)
+mlflow==3.6.0
+
+# 머신러닝 추론용 (최소 패키지)
+scikit-learn==1.7.2
+numpy==2.3.4
+joblib==1.5.2
+
+# 성능 최적화
+httpx>=0.24.0
+

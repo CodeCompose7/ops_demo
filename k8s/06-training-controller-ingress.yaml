@@ -1,0 +1,145 @@
+# Training Controller - Ingress로 도메인 접근 가능
+# 방법 3: Ingress (가장 프로덕션 친화적)
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: training-controller
+  namespace: mlops-training
+
+---
+# RBAC: Training Controller가 Job을 생성/조회/삭제할 수 있는 권한
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: training-controller-role
+  namespace: mlops-training
+rules:
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get", "list", "create", "delete", "watch"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: training-controller-binding
+  namespace: mlops-training
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: training-controller-role
+subjects:
+- kind: ServiceAccount
+  name: training-controller
+  namespace: mlops-training
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: training-controller
+  namespace: mlops-training
+  labels:
+    app: training-controller
+    component: ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: training-controller
+  template:
+    metadata:
+      labels:
+        app: training-controller
+        component: ui
+    spec:
+      serviceAccountName: training-controller
+      containers:
+      - name: controller
+        image: ops-demo:training-controller
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "200m"
+            memory: "512Mi"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: training-controller-service
+  namespace: mlops-training
+  labels:
+    app: training-controller
+spec:
+  type: ClusterIP  # Ingress 사용 시 ClusterIP
+  selector:
+    app: training-controller
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: training-controller-ingress
+  namespace: mlops-training
+  annotations:
+    kubernetes.io/ingress.class: traefik  # k3s 기본 Ingress Controller
+    # 인증 추가 (선택사항)
+    # traefik.ingress.kubernetes.io/auth-type: basic
+    # traefik.ingress.kubernetes.io/auth-secret: basic-auth
+spec:
+  rules:
+  # 방법 1: 도메인으로 접근
+  - host: training.mlops.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: training-controller-service
+            port:
+              number: 8080
+  # 방법 2: IP로 접근 (host 없음)
+  # - http:
+  #     paths:
+  #     - path: /training
+  #       pathType: Prefix
+  #       backend:
+  #         service:
+  #           name: training-controller-service
+  #           port:
+  #             number: 8080
+

@@ -1,0 +1,111 @@
+# Training Controller - NodePort로 외부 접근 가능
+# 방법 2: NodePort (포트 범위: 30000-32767)
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: training-controller
+  namespace: mlops-training
+
+---
+# RBAC: Training Controller가 Job을 생성/조회/삭제할 수 있는 권한
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: training-controller-role
+  namespace: mlops-training
+rules:
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get", "list", "create", "delete", "watch"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: training-controller-binding
+  namespace: mlops-training
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: training-controller-role
+subjects:
+- kind: ServiceAccount
+  name: training-controller
+  namespace: mlops-training
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: training-controller
+  namespace: mlops-training
+  labels:
+    app: training-controller
+    component: ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: training-controller
+  template:
+    metadata:
+      labels:
+        app: training-controller
+        component: ui
+    spec:
+      serviceAccountName: training-controller
+      containers:
+      - name: controller
+        image: ops-demo:training-controller
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "200m"
+            memory: "512Mi"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: training-controller-service
+  namespace: mlops-training
+  labels:
+    app: training-controller
+spec:
+  type: NodePort  # NodePort로 설정
+  selector:
+    app: training-controller
+  ports:
+  - port: 8080
+    targetPort: 8080
+    nodePort: 30080  # 고정 포트 (선택사항, 생략하면 자동 할당)
+    protocol: TCP
+    name: http
+

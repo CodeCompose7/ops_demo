@@ -17,59 +17,150 @@ jobs:
         with:
           ref: ${{ github.event.release.tag_name }}
 
-      - name: Docker 이미지를 tar 파일로 저장
+      - name: Docker 이미지 빌드 (Training & Serving & Controller)
         run: |
-          # Release 태그를 버전으로 사용
           VERSION=${{ github.event.release.tag_name }}
-          docker build -t ${{ env.IMAGE_NAME }}:${VERSION} -t ${{ env.IMAGE_NAME }}:latest .
-          docker save ${{ env.IMAGE_NAME }}:${VERSION} | gzip > image.tar.gz
+          
+          # Training 이미지 빌드
+          echo "🔨 Training 이미지 빌드 중..."
+          docker build -f Dockerfile.training -t ${IMAGE_NAME}:training-${VERSION} -t ${IMAGE_NAME}:training .
+          
+          # Serving 이미지 빌드
+          echo "🔨 Serving 이미지 빌드 중..."
+          docker build -f Dockerfile.serving -t ${IMAGE_NAME}:serving-${VERSION} -t ${IMAGE_NAME}:serving .
+          
+          # Training Controller 이미지 빌드
+          echo "🔨 Training Controller 이미지 빌드 중..."
+          docker build -f training-controller/Dockerfile -t ${IMAGE_NAME}:training-controller-${VERSION} -t ${IMAGE_NAME}:training-controller training-controller/
+          
+          # 이미지 크기 확인
+          echo "📦 이미지 크기:"
+          docker images | grep ${IMAGE_NAME}
+          
+          # tar 파일로 저장
+          echo "💾 이미지를 tar 파일로 저장 중..."
+          docker save ${IMAGE_NAME}:training-${VERSION} | gzip > training-image.tar.gz
+          docker save ${IMAGE_NAME}:serving-${VERSION} | gzip > serving-image.tar.gz
+          docker save ${IMAGE_NAME}:training-controller-${VERSION} | gzip > controller-image.tar.gz
 
       - name: 서버에 SSH 키 설정
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: 서버에 배포
+      - name: 이미지 파일을 서버로 전송
         env:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
-          APP_PORT: ${{ secrets.APP_PORT }}
-          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+        run: |
+          SSH_PORT=${DEPLOY_PORT:-22}
+          
+          echo "📤 Training 이미지 전송 중..."
+          scp -P ${SSH_PORT} -o StrictHostKeyChecking=no training-image.tar.gz ${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/
+          
+          echo "📤 Serving 이미지 전송 중..."
+          scp -P ${SSH_PORT} -o StrictHostKeyChecking=no serving-image.tar.gz ${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/
+          
+          echo "📤 Training Controller 이미지 전송 중..."
+          scp -P ${SSH_PORT} -o StrictHostKeyChecking=no controller-image.tar.gz ${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/
+          
+          echo "📤 Kubernetes 매니페스트 전송 중..."
+          scp -r -P ${SSH_PORT} -o StrictHostKeyChecking=no k8s/ ${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/
+
+      - name: Kubernetes에 배포
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
           VERSION: ${{ github.event.release.tag_name }}
         run: |
-          # SSH 포트 설정 (기본값: 22)
           SSH_PORT=${DEPLOY_PORT:-22}
-          # 애플리케이션 포트 설정 (기본값: 8000)
-          HOST_PORT=${APP_PORT:-8000}
-
-          # 이미지 파일을 서버로 전송
-          scp -P ${SSH_PORT} -o StrictHostKeyChecking=no image.tar.gz ${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/
-
-          # 서버에서 이미지 로드 및 컨테이너 재시작
-          ssh -p ${SSH_PORT} -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} << EOF
-            # 기존 이미지 로드
-            docker load < /tmp/image.tar.gz
-            rm /tmp/image.tar.gz
+          
+          ssh -p ${SSH_PORT} -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} << 'EOF'
+            set -e
             
-            # 이미지 태그 설정
-            IMAGE_TAG=${IMAGE_NAME}:${VERSION}
+            VERSION="${{ env.VERSION }}"
             
-            # 기존 컨테이너 중지 및 제거
-            docker stop ops_demo || true
-            docker rm ops_demo || true
+            echo "======================================"
+            echo "Kubernetes 배포 시작"
+            echo "버전: ${VERSION}"
+            echo "======================================"
             
-            # 새 이미지로 컨테이너 시작 (호스트 포트: ${HOST_PORT}, 컨테이너 포트: 8000)
-            docker run -d \
-              --name ops_demo \
-              -p ${HOST_PORT}:8000 \
-              -e ENVIRONMENT=production \
-              -e LOG_LEVEL=info \
-              --restart unless-stopped \
-              \${IMAGE_TAG}
+            # 1. Docker 이미지를 k3s에 import
+            echo ""
+            echo "📥 [1/5] Docker 이미지를 k3s에 import..."
             
-            # 불필요한 이미지 정리
-            docker image prune -f
+            docker load < /tmp/training-image.tar.gz
+            docker load < /tmp/serving-image.tar.gz
+            docker load < /tmp/controller-image.tar.gz
+            
+            sudo k3s ctr images import /tmp/training-image.tar.gz 2>/dev/null || true
+            sudo k3s ctr images import /tmp/serving-image.tar.gz 2>/dev/null || true
+            sudo k3s ctr images import /tmp/controller-image.tar.gz 2>/dev/null || true
+            
+            rm /tmp/training-image.tar.gz /tmp/serving-image.tar.gz /tmp/controller-image.tar.gz
+            echo "✅ 이미지 import 완료"
+            
+            # 2. 네임스페이스 생성 (없으면)
+            echo ""
+            echo "🏗️  [2/5] 네임스페이스 확인..."
+            kubectl apply -f /tmp/k8s/01-namespaces.yaml
+            echo "✅ 네임스페이스 준비 완료"
+            
+            # 3. 스토리지 설정 (없으면)
+            echo ""
+            echo "💾 [3/5] 스토리지 확인..."
+            
+            # 호스트 디렉토리 생성
+            sudo mkdir -p /data/mlops
+            sudo chmod 777 /data/mlops
+            
+            kubectl apply -f /tmp/k8s/02-storage.yaml
+            echo "✅ 스토리지 준비 완료"
+            
+            # 4. MLflow 서버 배포/업데이트
+            echo ""
+            echo "📊 [4/5] MLflow 서버 배포/업데이트..."
+            kubectl apply -f /tmp/k8s/03-mlflow.yaml
+            
+            # MLflow 준비 대기
+            echo "   → MLflow 서버 준비 대기 중..."
+            kubectl wait --for=condition=ready pod -l app=mlflow-server -n mlops-training --timeout=120s || true
+            echo "✅ MLflow 서버 준비 완료"
+            
+            # 5. Training Controller 배포/업데이트
+            echo ""
+            echo "🎯 [5/5] Training Controller 배포/업데이트..."
+            kubectl apply -f /tmp/k8s/06-training-controller.yaml
+            
+            # Training Controller 준비 대기
+            echo "   → Training Controller 준비 대기 중..."
+            kubectl wait --for=condition=ready pod -l app=training-controller -n mlops-training --timeout=120s || true
+            echo "✅ Training Controller 준비 완료"
+            
+            # 6. 서빙 API 무중단 배포
+            echo ""
+            echo "🚀 [6/6] 서빙 API 무중단 배포..."
+            kubectl apply -f /tmp/k8s/05-serving.yaml
+            
+            # 롤아웃 시작
+            echo "   → 롤링 업데이트 시작..."
+            kubectl set image deployment/iris-serving \
+              serving=ops-demo:serving \
+              -n mlops-serving
+            
+            # 롤아웃 진행 상황 확인
+            kubectl rollout status deployment/iris-serving -n mlops-serving --timeout=180s
+            echo "✅ 서빙 API 배포 완료"
+            
+            # 정리
+            rm -rf /tmp/k8s
+            
+            echo ""
+            echo "======================================"
+            echo "✅ 배포 완료!"
+            echo "======================================"
           EOF
 
       - name: 배포 결과 확인
@@ -78,24 +169,80 @@ jobs:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
         run: |
-          # SSH 포트 설정 (기본값: 22)
           SSH_PORT=${DEPLOY_PORT:-22}
+          
           ssh -p ${SSH_PORT} -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} << 'EOF'
-            echo "--- 실행 중인 컨테이너 ---"
-            docker ps --filter "name=ops_demo" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
             echo ""
-            echo "--- 컨테이너 로그 (최근 20줄) ---"
-            docker logs --tail=20 ops_demo || echo "컨테이너가 아직 시작되지 않았습니다."
+            echo "======================================"
+            echo "배포 상태 확인"
+            echo "======================================"
+            
+            echo ""
+            echo "📊 Training 네임스페이스:"
+            kubectl get pods,svc -n mlops-training
+            
+            echo ""
+            echo "🚀 Serving 네임스페이스:"
+            kubectl get pods,svc -n mlops-serving
+            
+            echo ""
+            echo "📝 최근 로그 (Serving API):"
+            SERVING_POD=$(kubectl get pod -n mlops-serving -l app=iris-serving -o jsonpath='{.items[0].metadata.name}')
+            kubectl logs --tail=20 $SERVING_POD -n mlops-serving 2>/dev/null || echo "로그를 가져올 수 없습니다."
+            
+            echo ""
+            echo "======================================"
+            echo "접속 정보"
+            echo "======================================"
+            
+            # External IP 확인
+            EXTERNAL_IP=$(kubectl get svc iris-serving-service -n mlops-serving -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
+            
+            if [ "$EXTERNAL_IP" != "pending" ] && [ -n "$EXTERNAL_IP" ]; then
+              echo "🚀 Serving API: http://$EXTERNAL_IP"
+            else
+              echo "🚀 Serving API: 포트포워딩 필요"
+              echo "   kubectl port-forward -n mlops-serving svc/iris-serving-service 8000:80"
+            fi
+            
+            echo ""
+            MLflow_POD=$(kubectl get pod -n mlops-training -l app=mlflow-server -o jsonpath='{.items[0].metadata.name}')
+            echo "📊 MLflow UI: 포트포워딩 필요"
+            echo "   kubectl port-forward -n mlops-training $MLFLOW_POD 5000:5000"
           EOF
 
       - name: 배포 결과 요약
         env:
-          APP_PORT: ${{ secrets.APP_PORT }}
+          VERSION: ${{ github.event.release.tag_name }}
         run: |
-          HOST_PORT=${APP_PORT:-8000}
-          echo "## 배포 성공 🚀" >> $GITHUB_STEP_SUMMARY
-          echo "**버전**: ${{ github.event.release.tag_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "서버: ${{ secrets.DEPLOY_HOST }}" >> $GITHUB_STEP_SUMMARY
-          echo "포트: ${HOST_PORT}" >> $GITHUB_STEP_SUMMARY
-          echo "커밋: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "릴리스 노트: ${{ github.event.release.body }}" >> $GITHUB_STEP_SUMMARY
+          echo "## 🎉 Kubernetes 배포 성공!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 배포 정보" >> $GITHUB_STEP_SUMMARY
+          echo "- **버전**: ${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "- **서버**: ${{ secrets.DEPLOY_HOST }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **커밋**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🐳 배포된 이미지" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ops-demo:training-${VERSION}\` (훈련용)" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ops-demo:serving-${VERSION}\` (서빙용)" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ops-demo:training-controller-${VERSION}\` (훈련 UI)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🚀 배포된 리소스" >> $GITHUB_STEP_SUMMARY
+          echo "- Training Controller UI (mlops-training)" >> $GITHUB_STEP_SUMMARY
+          echo "- MLflow Server (mlops-training)" >> $GITHUB_STEP_SUMMARY
+          echo "- Serving API x2 (mlops-serving)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 접속 방법" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "# Training Controller UI (웹에서 훈련 시작)" >> $GITHUB_STEP_SUMMARY
+          echo "kubectl port-forward -n mlops-training svc/training-controller-service 8080:8080" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# MLflow UI (실험 추적)" >> $GITHUB_STEP_SUMMARY
+          echo "kubectl port-forward -n mlops-training svc/mlflow-service 5000:5000" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# Serving API" >> $GITHUB_STEP_SUMMARY
+          echo "kubectl port-forward -n mlops-serving svc/iris-serving-service 8000:80" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📝 릴리스 노트" >> $GITHUB_STEP_SUMMARY
+          echo "${{ github.event.release.body }}" >> $GITHUB_STEP_SUMMARY

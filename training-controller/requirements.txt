@@ -1,0 +1,5 @@
+fastapi==0.121.1
+uvicorn[standard]==0.38.0
+kubernetes==31.0.0
+pydantic==2.12.4
+

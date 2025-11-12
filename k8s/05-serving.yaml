@@ -1,0 +1,116 @@
+# 모델 서빙 API - 고가용성 배포
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iris-serving
+  namespace: mlops-serving
+  labels:
+    app: iris-serving
+    component: serving
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: iris-serving
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: iris-serving
+        component: serving
+    spec:
+      containers:
+      - name: serving
+        image: ops-demo:serving
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: MLFLOW_TRACKING_URI
+          value: "http://mlflow-service.mlops-training.svc.cluster.local:5000"
+        - name: ENVIRONMENT
+          value: "production"
+        - name: LOG_LEVEL
+          value: "info"
+        volumeMounts:
+        - name: mlops-storage
+          mountPath: /data
+          readOnly: true
+        - name: models
+          mountPath: /app/models
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "300m"
+            memory: "512Mi"
+      volumes:
+      - name: mlops-storage
+        persistentVolumeClaim:
+          claimName: mlops-pvc
+      - name: models
+        hostPath:
+          path: /app/models
+          type: DirectoryOrCreate
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iris-serving-service
+  namespace: mlops-serving
+  labels:
+    app: iris-serving
+spec:
+  type: LoadBalancer
+  selector:
+    app: iris-serving
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http
+
+---
+# Ingress (선택사항 - 도메인이 있을 경우)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: iris-serving-ingress
+  namespace: mlops-serving
+  annotations:
+    kubernetes.io/ingress.class: traefik
+spec:
+  rules:
+  - host: iris-api.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: iris-serving-service
+            port:
+              number: 80
+

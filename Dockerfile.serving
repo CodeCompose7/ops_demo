@@ -1,0 +1,35 @@
+# 서빙용 Docker 이미지 - 경량화된 추론 전용
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# 최소 시스템 의존성
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# 서빙용 Python 의존성 설치 (경량)
+COPY requirements-serving.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements-serving.txt
+
+# API 코드만 복사
+COPY app/ ./app/
+
+# 모델 디렉토리 (볼륨 마운트)
+RUN mkdir -p models
+
+# 환경변수 설정
+ENV PYTHONPATH=/app
+ENV MLFLOW_TRACKING_URI=http://mlflow-service.mlops-training.svc.cluster.local:5000
+
+# 포트 노출
+EXPOSE 8000
+
+# 헬스체크
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD python -c "import httpx; httpx.get('http://localhost:8000/health')" || exit 1
+
+# 서빙 실행
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+

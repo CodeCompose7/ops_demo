@@ -1,0 +1,29 @@
+# 훈련용 Docker 이미지 - 완전한 ML 개발 환경
+FROM python:3.11
+
+WORKDIR /app
+
+# 시스템 의존성 설치
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# 훈련용 Python 의존성 설치
+COPY requirements-training.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements-training.txt
+
+# 훈련 스크립트 및 데이터 복사
+COPY scripts/ ./scripts/
+
+# 공유 볼륨 마운트 포인트
+VOLUME ["/data/models", "/data/mlruns"]
+
+# 환경변수 설정
+ENV PYTHONPATH=/app
+ENV MLFLOW_TRACKING_URI=http://mlflow-service:5000
+
+# 기본 명령어 (Job에서 override 가능)
+CMD ["python", "scripts/train_pipeline_mlflow.py"]
+

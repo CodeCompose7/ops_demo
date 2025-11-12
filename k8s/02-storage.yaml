@@ -1,0 +1,49 @@
+# 공유 스토리지 구성: 훈련된 모델과 MLflow 데이터를 공유
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mlops-shared-pv
+  labels:
+    type: local
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-path
+  hostPath:
+    path: /data/mlops
+    type: DirectoryOrCreate
+
+---
+# Training 네임스페이스용 PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mlops-pvc
+  namespace: mlops-training
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 2Gi
+
+---
+# Serving 네임스페이스용 PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mlops-pvc
+  namespace: mlops-serving
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 2Gi
+

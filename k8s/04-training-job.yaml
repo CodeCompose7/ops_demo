@@ -1,0 +1,56 @@
+# 모델 훈련 Job - 필요할 때마다 실행
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: iris-training
+  namespace: mlops-training
+  labels:
+    app: iris-training
+    component: training
+spec:
+  # 실패 시 재시도 횟수
+  backoffLimit: 3
+  # Job 완료 후 보관 기간 (초)
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: iris-training
+        component: training
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: training
+        image: ops-demo:training
+        command:
+        - python
+        - scripts/train_pipeline_mlflow.py
+        # 기본 하이퍼파라미터 (override 가능)
+        args:
+        - --n-estimators
+        - "100"
+        - --max-depth
+        - "5"
+        - --run-name
+        - "k8s-training"
+        env:
+        - name: MLFLOW_TRACKING_URI
+          value: "http://mlflow-service:5000"
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        volumeMounts:
+        - name: mlops-storage
+          mountPath: /data
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+          limits:
+            cpu: "2000m"
+            memory: "4Gi"
+      volumes:
+      - name: mlops-storage
+        persistentVolumeClaim:
+          claimName: mlops-pvc
+
