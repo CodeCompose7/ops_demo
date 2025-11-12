@@ -20,23 +20,23 @@ jobs:
       - name: Docker 이미지 빌드 (Training & Serving & Controller)
         run: |
           VERSION=${{ github.event.release.tag_name }}
-          
+
           # Training 이미지 빌드
           echo "🔨 Training 이미지 빌드 중..."
           docker build -f Dockerfile.training -t ${IMAGE_NAME}:training-${VERSION} -t ${IMAGE_NAME}:training .
-          
+
           # Serving 이미지 빌드
           echo "🔨 Serving 이미지 빌드 중..."
           docker build -f Dockerfile.serving -t ${IMAGE_NAME}:serving-${VERSION} -t ${IMAGE_NAME}:serving .
-          
+
           # Training Controller 이미지 빌드
           echo "🔨 Training Controller 이미지 빌드 중..."
           docker build -f training-controller/Dockerfile -t ${IMAGE_NAME}:training-controller-${VERSION} -t ${IMAGE_NAME}:training-controller training-controller/
-          
+
           # 이미지 크기 확인
           echo "📦 이미지 크기:"
           docker images | grep ${IMAGE_NAME}
-          
+
           # tar 파일로 저장
           echo "💾 이미지를 tar 파일로 저장 중..."
           docker save ${IMAGE_NAME}:training-${VERSION} | gzip > training-image.tar.gz
@@ -55,16 +55,16 @@ jobs:
           DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
         run: |
           SSH_PORT=${DEPLOY_PORT:-22}
-          
+
           echo "📤 Training 이미지 전송 중..."
           scp -P ${SSH_PORT} -o StrictHostKeyChecking=no training-image.tar.gz ${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/
-          
+
           echo "📤 Serving 이미지 전송 중..."
           scp -P ${SSH_PORT} -o StrictHostKeyChecking=no serving-image.tar.gz ${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/
-          
+
           echo "📤 Training Controller 이미지 전송 중..."
           scp -P ${SSH_PORT} -o StrictHostKeyChecking=no controller-image.tar.gz ${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/
-          
+
           echo "📤 Kubernetes 매니페스트 전송 중..."
           scp -r -P ${SSH_PORT} -o StrictHostKeyChecking=no k8s/ ${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/
 
@@ -76,7 +76,7 @@ jobs:
           VERSION: ${{ github.event.release.tag_name }}
         run: |
           SSH_PORT=${DEPLOY_PORT:-22}
-          
+
           ssh -p ${SSH_PORT} -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} << 'EOF'
             set -e
             
@@ -95,9 +95,9 @@ jobs:
             docker load < /tmp/serving-image.tar.gz
             docker load < /tmp/controller-image.tar.gz
             
-            sudo k3s ctr images import /tmp/training-image.tar.gz 2>/dev/null || true
-            sudo k3s ctr images import /tmp/serving-image.tar.gz 2>/dev/null || true
-            sudo k3s ctr images import /tmp/controller-image.tar.gz 2>/dev/null || true
+            k3s ctr images import /tmp/training-image.tar.gz 2>/dev/null || true
+            k3s ctr images import /tmp/serving-image.tar.gz 2>/dev/null || true
+            k3s ctr images import /tmp/controller-image.tar.gz 2>/dev/null || true
             
             rm /tmp/training-image.tar.gz /tmp/serving-image.tar.gz /tmp/controller-image.tar.gz
             echo "✅ 이미지 import 완료"
@@ -113,8 +113,8 @@ jobs:
             echo "💾 [3/5] 스토리지 확인..."
             
             # 호스트 디렉토리 생성
-            sudo mkdir -p /data/mlops
-            sudo chmod 777 /data/mlops
+            mkdir -p /data/mlops
+            chmod 777 /data/mlops
             
             kubectl apply -f /tmp/k8s/02-storage.yaml
             echo "✅ 스토리지 준비 완료"
@@ -170,7 +170,7 @@ jobs:
           DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
         run: |
           SSH_PORT=${DEPLOY_PORT:-22}
-          
+
           ssh -p ${SSH_PORT} -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} << 'EOF'
             echo ""
             echo "======================================"
