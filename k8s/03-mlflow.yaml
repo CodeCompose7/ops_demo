@@ -26,15 +26,14 @@ spec:
             - sh
             - -c
             - |
-              export GUNICORN_CMD_ARGS="--timeout 60 --workers 1 --forwarded-allow-ips='*' --access-logfile -"
               mlflow server \
                 --host 0.0.0.0 \
                 --port 5000 \
                 --backend-store-uri sqlite:////data/mlflow.db \
                 --default-artifact-root /data/mlruns \
                 --serve-artifacts \
-                --gunicorn-opts "--timeout 60 --workers 1 --forwarded-allow-ips='*'" \
-                --allowed-hosts "*"
+                --gunicorn-opts "--timeout 60 --workers 4 --forwarded-allow-ips='*' --access-logfile -" \
+                --disable-security-middleware
           env:
             - name: MLFLOW_HOST
               value: "0.0.0.0"
