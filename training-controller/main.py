@@ -249,8 +249,8 @@ async def root():
             <p>Kubernetes에서 모델 훈련을 쉽게 시작하고 관리하세요</p>
             <br>
             <div class="links">
-                <a href="http://localhost:5000" class="link-btn" target="_blank">📊 MLflow UI</a>
-                <a href="http://localhost:8000/docs" class="link-btn" target="_blank">🔥 Serving API</a>
+                <a href="http://localhost:30501" class="link-btn" target="_blank">📊 MLflow UI</a>
+                <a href="http://localhost:30801/docs" class="link-btn" target="_blank">🔥 Serving API</a>
                 <a href="/docs" class="link-btn">📖 API Docs</a>
             </div>
         </div>
@@ -441,7 +441,9 @@ async def create_training_job(request: TrainingRequest):
     """새로운 훈련 Job 생성"""
 
     # Run name 생성 (없으면 자동)
-    run_name = request.run_name or f"training-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    run_name = (
+        request.run_name or f"training-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    )
 
     # Job 이름 생성 (Kubernetes 규칙 준수)
     job_name = f"iris-training-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
@@ -483,9 +485,7 @@ async def create_training_job(request: TrainingRequest):
                                         name="MLFLOW_TRACKING_URI",
                                         value="http://mlflow-service:5000",
                                     ),
-                                    client.V1EnvVar(
-                                        name="PYTHONUNBUFFERED", value="1"
-                                    ),
+                                    client.V1EnvVar(name="PYTHONUNBUFFERED", value="1"),
                                 ],
                                 volume_mounts=[
                                     client.V1VolumeMount(
@@ -550,4 +550,3 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(app, host="0.0.0.0", port=8080)
-
