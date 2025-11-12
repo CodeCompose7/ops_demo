@@ -488,24 +488,15 @@ async def create_training_job(request: TrainingRequest):
                                         name="MLFLOW_TRACKING_URI",
                                         value="http://mlflow-service:5000",
                                     ),
+                                    client.V1EnvVar(
+                                        name="MLFLOW_ARTIFACT_URI",
+                                        value="mlflow-artifacts://mlflow-service:5000",
+                                    ),
                                     client.V1EnvVar(name="PYTHONUNBUFFERED", value="1"),
-                                ],
-                                volume_mounts=[
-                                    client.V1VolumeMount(
-                                        name="mlops-storage", mount_path="/data"
-                                    )
                                 ],
                                 resources=client.V1ResourceRequirements(
                                     requests={"cpu": "1000m", "memory": "2Gi"},
                                     limits={"cpu": "2000m", "memory": "4Gi"},
-                                ),
-                            )
-                        ],
-                        volumes=[
-                            client.V1Volume(
-                                name="mlops-storage",
-                                persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
-                                    claim_name="mlops-pvc"
                                 ),
                             )
                         ],

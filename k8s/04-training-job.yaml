@@ -37,11 +37,10 @@ spec:
           env:
             - name: MLFLOW_TRACKING_URI
               value: "http://mlflow-service:5000"
+            - name: MLFLOW_ARTIFACT_URI
+              value: "mlflow-artifacts://mlflow-service:5000"
             - name: PYTHONUNBUFFERED
               value: "1"
-          volumeMounts:
-            - name: mlops-storage
-              mountPath: /data
           resources:
             requests:
               cpu: "1000m"
@@ -49,7 +48,3 @@ spec:
             limits:
               cpu: "2000m"
               memory: "4Gi"
-      volumes:
-        - name: mlops-storage
-          persistentVolumeClaim:
-            claimName: mlops-pvc
