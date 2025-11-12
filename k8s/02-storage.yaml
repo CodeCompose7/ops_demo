@@ -2,13 +2,19 @@
 #
 # 참고: /data/mlops 경로는 배포 시 자동으로 $HOME/ops-demo-data/mlops로 치환됩니다.
 # 배포 스크립트에서 sed 명령을 사용하여 동적으로 경로를 설정합니다.
+#
+# 중요: 두 네임스페이스가 같은 hostPath를 사용하여 데이터를 공유합니다.
+#       - Training에서 모델을 학습하고 /data/mlops/models에 저장
+#       - Serving에서 학습된 모델을 /data/mlops/models에서 로드
 ---
+# Training 네임스페이스용 PV
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: mlops-shared-pv
+  name: mlops-pv-training
   labels:
     type: local
+    namespace: mlops-training
 spec:
   capacity:
     storage: 5Gi
@@ -17,7 +23,27 @@ spec:
   persistentVolumeReclaimPolicy: Retain
   storageClassName: local-path
   hostPath:
-    path: /data/mlops
+    path: /data/mlops # 공유 경로
+    type: DirectoryOrCreate
+
+---
+# Serving 네임스페이스용 PV
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mlops-pv-serving
+  labels:
+    type: local
+    namespace: mlops-serving
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-path
+  hostPath:
+    path: /data/mlops # Training과 같은 경로 공유
     type: DirectoryOrCreate
 
 ---
@@ -31,7 +57,7 @@ spec:
   accessModes:
     - ReadWriteMany
   storageClassName: local-path
-  volumeName: mlops-shared-pv # 명시적으로 PV 지정
+  volumeName: mlops-pv-training # Training용 PV에 바인딩
   resources:
     requests:
       storage: 2Gi
@@ -47,7 +73,7 @@ spec:
   accessModes:
     - ReadWriteMany
   storageClassName: local-path
-  volumeName: mlops-shared-pv # 같은 PV 공유 (RWX)
+  volumeName: mlops-pv-serving # Serving용 PV에 바인딩
   resources:
     requests:
       storage: 2Gi
