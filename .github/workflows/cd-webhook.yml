@@ -1,0 +1,158 @@
+name: CD Pipeline (Webhook)
+
+on:
+  release:
+    types: [published]
+
+env:
+  IMAGE_NAME: ops-demo
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 서버에 SSH 키 설정
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: 서버에 배포 트리거
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          VERSION: ${{ github.event.release.tag_name }}
+        run: |
+          SSH_PORT=${DEPLOY_PORT:-22}
+
+          # 서버에 SSH 접속하여 배포 스크립트 실행
+          ssh -p ${SSH_PORT} \
+            -o StrictHostKeyChecking=no \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=10 \
+            ${DEPLOY_USER}@${DEPLOY_HOST} << 'EOF'
+            
+            set -e
+            
+            VERSION="${{ env.VERSION }}"
+            
+            echo "======================================"
+            echo "서버에서 직접 빌드 및 배포"
+            echo "버전: ${VERSION}"
+            echo "======================================"
+            
+            # 1. Git 저장소 업데이트
+            echo ""
+            echo "📥 [1/4] Git 저장소 업데이트..."
+            
+            # 프로젝트 디렉토리 설정 (홈 디렉토리 사용)
+            PROJECT_DIR="$HOME/ops-demo"
+            
+            # 저장소가 없으면 clone
+            if [ ! -d "$PROJECT_DIR" ]; then
+              echo "  → 저장소 clone 중..."
+              git clone https://github.com/${{ github.repository }}.git $PROJECT_DIR
+            fi
+            
+            cd $PROJECT_DIR
+            git fetch --all
+            git checkout ${VERSION} 2>/dev/null || git checkout main
+            git pull origin main
+            echo "✅ 코드 업데이트 완료"
+            
+            # 2. Docker 이미지 빌드
+            echo ""
+            echo "🔨 [2/4] Docker 이미지 빌드..."
+            
+            docker build -f Dockerfile.training -t ops-demo:training -t ops-demo:training-${VERSION} .
+            echo "  ✓ Training 이미지 빌드 완료"
+            
+            docker build -f Dockerfile.serving -t ops-demo:serving -t ops-demo:serving-${VERSION} .
+            echo "  ✓ Serving 이미지 빌드 완료"
+            
+            docker build -f training-controller/Dockerfile -t ops-demo:training-controller -t ops-demo:training-controller-${VERSION} training-controller/
+            echo "  ✓ Training Controller 이미지 빌드 완료"
+            
+            # 3. k3s에 이미지 import
+            echo ""
+            echo "📦 [3/4] k3s에 이미지 import..."
+            
+            # k3s 그룹에 속한 사용자는 sudo 없이 실행 가능
+            docker save ops-demo:training | k3s ctr images import - 2>/dev/null || \
+              docker save ops-demo:training | sudo k3s ctr images import - 2>/dev/null || true
+            
+            docker save ops-demo:serving | k3s ctr images import - 2>/dev/null || \
+              docker save ops-demo:serving | sudo k3s ctr images import - 2>/dev/null || true
+            
+            docker save ops-demo:training-controller | k3s ctr images import - 2>/dev/null || \
+              docker save ops-demo:training-controller | sudo k3s ctr images import - 2>/dev/null || true
+            
+            echo "✅ 이미지 import 완료"
+            
+            # 4. Kubernetes 배포
+            echo ""
+            echo "🚀 [4/4] Kubernetes 배포..."
+            
+            cd $PROJECT_DIR/k8s
+            
+            # 네임스페이스 확인
+            kubectl apply -f 01-namespaces.yaml
+            
+            # 스토리지 디렉토리 설정 (사용자 홈 디렉토리)
+            STORAGE_DIR="$HOME/ops-demo-data/mlops"
+            if [ ! -d "$STORAGE_DIR" ]; then
+              echo "  → 스토리지 디렉토리 생성: $STORAGE_DIR"
+              mkdir -p $STORAGE_DIR
+            fi
+            
+            # PersistentVolume의 hostPath를 실제 경로로 치환하여 적용
+            sed "s|/data/mlops|$STORAGE_DIR|g" 02-storage.yaml | kubectl apply -f -
+            
+            # MLflow 배포
+            kubectl apply -f 03-mlflow.yaml
+            echo "  ✓ MLflow 배포 완료"
+            
+            # Training Controller 배포
+            kubectl apply -f 06-training-controller.yaml
+            kubectl rollout restart deployment/training-controller -n mlops-training
+            echo "  ✓ Training Controller 배포 완료"
+            
+            # Serving API 무중단 배포
+            kubectl apply -f 05-serving.yaml
+            kubectl rollout restart deployment/iris-serving -n mlops-serving
+            echo "  ✓ Serving API 배포 완료"
+            
+            echo ""
+            echo "======================================"
+            echo "✅ 배포 완료!"
+            echo "======================================"
+            echo ""
+            
+            # 상태 확인
+            echo "Pod 상태:"
+            kubectl get pods -n mlops-training
+            kubectl get pods -n mlops-serving
+            echo ""
+            
+            echo "서비스 상태:"
+            kubectl get svc -n mlops-training
+            kubectl get svc -n mlops-serving
+            
+          EOF
+
+      - name: 배포 결과 요약
+        env:
+          VERSION: ${{ github.event.release.tag_name }}
+        run: |
+          echo "## 🎉 배포 완료!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 배포 정보" >> $GITHUB_STEP_SUMMARY
+          echo "- **버전**: ${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "- **서버**: ${{ secrets.DEPLOY_HOST }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **방식**: 서버에서 직접 빌드" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🌐 접속 정보" >> $GITHUB_STEP_SUMMARY
+          echo "- Training Controller: http://localhost:30081" >> $GITHUB_STEP_SUMMARY
+          echo "- MLflow UI: http://localhost:30501" >> $GITHUB_STEP_SUMMARY
+          echo "- Serving API: http://localhost:30801" >> $GITHUB_STEP_SUMMARY

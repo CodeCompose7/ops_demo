@@ -216,7 +216,7 @@ curl -X POST http://localhost:8000/predict \
 # 2. MLflow에서 결과 확인
 # http://localhost:5000
 
-# 3. 모델이 자동으로 저장됨 (/data/mlops/models/)
+# 3. 모델이 자동으로 저장됨 ($HOME/ops-demo-data/mlops/models/)
 
 # 4. 서빙 API가 자동으로 최신 모델 로드
 # (또는 API 재시작으로 강제 로드)
@@ -353,7 +353,7 @@ kubectl rollout status deployment/iris-serving -n mlops-serving
 ### 호스트 데이터 삭제
 
 ```bash
-sudo rm -rf /data/mlops
+rm -rf $HOME/ops-demo-data/mlops
 ```
 
 ---
@@ -437,7 +437,7 @@ kubectl port-forward -n mlops-training svc/mlflow-service 5000:5000
 
 ```bash
 # 호스트 디렉토리 권한 확인
-sudo chmod 777 /data/mlops
+chmod 777 $HOME/ops-demo-data/mlops
 
 # Pod에서 실제 마운트 확인
 kubectl exec -it <pod-name> -n mlops-training -- ls -la /data

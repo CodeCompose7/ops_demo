@@ -182,12 +182,12 @@ kubectl get namespaces | grep mlops
 #### 2. 스토리지 설정
 
 ```bash
-# 호스트 디렉토리 생성
-sudo mkdir -p /data/mlops
-sudo chmod 777 /data/mlops
+# 호스트 디렉토리 생성 (사용자 홈 디렉토리)
+mkdir -p $HOME/ops-demo-data/mlops
 
-# PV, PVC 생성
-kubectl apply -f k8s/02-storage.yaml
+# PV, PVC 생성 (경로 자동 치환)
+STORAGE_DIR="$HOME/ops-demo-data/mlops"
+sed "s|/data/mlops|$STORAGE_DIR|g" k8s/02-storage.yaml | kubectl apply -f -
 
 # 확인
 kubectl get pv,pvc -A
@@ -386,7 +386,7 @@ kubectl get jobs -n mlops-training
 ./k8s/cleanup.sh
 
 # 호스트 데이터도 삭제 (선택)
-sudo rm -rf /data/mlops
+rm -rf $HOME/ops-demo-data/mlops
 ```
 
 ### 개별 리소스 삭제
@@ -434,7 +434,7 @@ docker save ops-demo:serving | sudo k3s ctr images import -
 
 ```bash
 # 권한 확인
-sudo chmod 777 /data/mlops
+chmod 777 $HOME/ops-demo-data/mlops
 
 # SELinux 비활성화 (필요 시)
 sudo setenforce 0
