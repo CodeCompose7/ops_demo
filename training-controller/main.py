@@ -430,6 +430,9 @@ async def list_jobs():
                 }
             )
 
+        # 최신순으로 정렬 (creation_timestamp 기준 내림차순)
+        result.sort(key=lambda x: x["created_at"], reverse=True)
+        
         return result
 
     except Exception as e:
