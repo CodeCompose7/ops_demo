@@ -56,9 +56,23 @@ jobs:
             fi
             
             cd $PROJECT_DIR
-            git fetch --all
-            git checkout ${VERSION} 2>/dev/null || git checkout main
-            git pull origin main
+            
+            # 항상 최신 상태로 업데이트 (태그 포함)
+            echo "  → 최신 코드 및 태그 가져오기..."
+            git fetch --all --tags --prune
+            
+            # Release 태그로 강제 전환
+            echo "  → Release ${VERSION}로 전환 중..."
+            if git rev-parse ${VERSION} >/dev/null 2>&1; then
+              git checkout -f ${VERSION}
+              echo "  ✓ Release ${VERSION} 적용"
+            else
+              echo "  ⚠ 태그 ${VERSION}를 찾을 수 없음, main 사용"
+              git checkout -f main
+              git reset --hard origin/main
+            fi
+            
+            echo "  → 현재 커밋: $(git rev-parse --short HEAD)"
             echo "✅ 코드 업데이트 완료"
             
             # 2. Docker 이미지 빌드
