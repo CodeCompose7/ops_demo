@@ -118,47 +118,11 @@ def load_model():
                 print(f"⚠️ MLflow 로드 실패: {e}")
             continue
 
-    # 2순위: 로컬 파일에서 모델 로드 (기존 방식)
-    model_path = Path("models/model.pkl")
-    if model_path.exists():
-        model_artifact = joblib.load(model_path)
-
-        MODEL = model_artifact["model"]
-        MODEL_INFO = {
-            "version": model_artifact["version"],
-            "metrics": model_artifact["metrics"],
-            "source": "local",
-            "created_at": model_artifact.get("created_at", "unknown"),
-            "feature_names": model_artifact.get(
-                "feature_names",
-                [
-                    "sepal_length",
-                    "sepal_width",
-                    "petal_length",
-                    "petal_width",
-                ],
-            ),
-            "target_names": model_artifact.get(
-                "target_names",
-                [
-                    "setosa",
-                    "versicolor",
-                    "virginica",
-                ],
-            ),
-        }
-
-        # MLflow run_id가 있으면 추가
-        if "mlflow_run_id" in model_artifact:
-            MODEL_INFO["mlflow_run_id"] = model_artifact["mlflow_run_id"]
-        if "params" in model_artifact:
-            MODEL_INFO["params"] = model_artifact["params"]
-
-        print(f"✅ 로컬 모델 로드: {MODEL_INFO['version']}")
-        if "mlflow_run_id" in MODEL_INFO:
-            print(f"   MLflow Run ID: {MODEL_INFO['mlflow_run_id']}")
-    else:
-        raise FileNotFoundError("모델을 찾을 수 없습니다!")
+    # 모델을 찾을 수 없으면 에러
+    raise FileNotFoundError(
+        "모델을 찾을 수 없습니다! MLflow에 모델이 등록되어 있는지 확인하세요. "
+        "Training Job을 실행하여 모델을 먼저 학습해야 합니다."
+    )
 
 
 @asynccontextmanager

@@ -25,54 +25,39 @@ spec:
         component: serving
     spec:
       containers:
-      - name: serving
-        image: ops-demo:serving
-        ports:
-        - containerPort: 8000
-          name: http
-        env:
-        - name: MLFLOW_TRACKING_URI
-          value: "http://mlflow-service.mlops-training:5000"
-        - name: ENVIRONMENT
-          value: "production"
-        - name: LOG_LEVEL
-          value: "info"
-        volumeMounts:
-        - name: mlops-storage
-          mountPath: /data
-          readOnly: true
-        - name: models
-          mountPath: /app/models
-          readOnly: true
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8000
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          timeoutSeconds: 5
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: 8000
-          initialDelaySeconds: 10
-          periodSeconds: 5
-          timeoutSeconds: 3
-        resources:
-          requests:
-            cpu: "100m"
-            memory: "256Mi"
-          limits:
-            cpu: "300m"
-            memory: "512Mi"
-      volumes:
-      - name: mlops-storage
-        persistentVolumeClaim:
-          claimName: mlops-pvc
-      - name: models
-        hostPath:
-          path: /app/models
-          type: DirectoryOrCreate
+        - name: serving
+          image: ops-demo:serving
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: MLFLOW_TRACKING_URI
+              value: "http://mlflow-service.mlops-training:5000"
+            - name: ENVIRONMENT
+              value: "production"
+            - name: LOG_LEVEL
+              value: "info"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "300m"
+              memory: "512Mi"
 
 ---
 apiVersion: v1
@@ -83,15 +68,15 @@ metadata:
   labels:
     app: iris-serving
 spec:
-  type: NodePort  # NodePort로 변경 (localhost 접근 가능)
+  type: NodePort # NodePort로 변경 (localhost 접근 가능)
   selector:
     app: iris-serving
   ports:
-  - port: 80
-    targetPort: 8000
-    nodePort: 30801  # localhost:30801으로 접근 가능
-    protocol: TCP
-    name: http
+    - port: 80
+      targetPort: 8000
+      nodePort: 30801 # localhost:30801으로 접근 가능
+      protocol: TCP
+      name: http
 
 ---
 # Ingress (선택사항 - 도메인이 있을 경우)
@@ -104,14 +89,13 @@ metadata:
     kubernetes.io/ingress.class: traefik
 spec:
   rules:
-  - host: iris-api.local
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: iris-serving-service
-            port:
-              number: 80
-
+    - host: iris-api.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: iris-serving-service
+                port:
+                  number: 80
