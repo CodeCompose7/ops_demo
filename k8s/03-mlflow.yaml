@@ -29,7 +29,7 @@ spec:
               mlflow server \
                 --host 0.0.0.0 \
                 --port 5000 \
-                --backend-store-uri file:///data/mlruns \
+                --backend-store-uri sqlite:////data/mlflow.db \
                 --default-artifact-root /data/mlruns \
                 --serve-artifacts \
                 --disable-security-middleware

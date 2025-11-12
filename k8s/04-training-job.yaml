@@ -36,7 +36,7 @@ spec:
             - "k8s-training"
           env:
             - name: MLFLOW_TRACKING_URI
-              value: "file:///data/mlruns"
+              value: "http://mlflow-service:5000"
             - name: PYTHONUNBUFFERED
               value: "1"
           volumeMounts:
