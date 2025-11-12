@@ -18,7 +18,7 @@ class IrisMLPipelineWithMLflow:
         # MLflow Tracking URI 설정
         # Kubernetes 환경에서는 로컬 파일시스템에 직접 저장
         # (MLflow server는 이 디렉토리를 읽어서 UI에 표시)
-        tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "file:///data")
+        tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "file:///data/mlruns")
         mlflow.set_tracking_uri(tracking_uri)
         print(f"  → MLflow Tracking URI: {tracking_uri}")
         

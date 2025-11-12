@@ -486,7 +486,7 @@ async def create_training_job(request: TrainingRequest):
                                 env=[
                                     client.V1EnvVar(
                                         name="MLFLOW_TRACKING_URI",
-                                        value="file:///data",
+                                        value="file:///data/mlruns",
                                     ),
                                     client.V1EnvVar(name="PYTHONUNBUFFERED", value="1"),
                                 ],
