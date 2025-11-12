@@ -20,12 +20,17 @@ def load_model():
     global MODEL, MODEL_INFO
 
     # 1순위: MLflow Registry에서 모델 로드
-    # Serving Pod는 /data PVC를 마운트하고 있으므로 SQLite DB 직접 접근
-    # Registry 정보: sqlite:////data/mlflow.db
-    # Artifacts: /data/mlruns/
-    tracking_uri = "sqlite:////data/mlflow.db"
+    # MLflow Tracking Server를 통해 접근 (Training과 동일한 방식)
+    # Kubernetes 서비스 디스커버리: service-name.namespace:port
+    import os
+
+    tracking_uri = os.getenv(
+        "MLFLOW_TRACKING_URI",
+        "http://mlflow-service.mlops-training:5000",
+    )
     mlflow.set_tracking_uri(tracking_uri)
     client = MlflowClient(tracking_uri=tracking_uri)
+    print(f"  → MLflow Tracking URI: {tracking_uri}")
 
     # 프로덕션 → Staging → 최신 버전 순으로 시도
     stages_to_try = ["Production", "Staging", None]

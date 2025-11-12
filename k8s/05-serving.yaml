@@ -32,7 +32,7 @@ spec:
           name: http
         env:
         - name: MLFLOW_TRACKING_URI
-          value: "http://mlflow-service.mlops-training.svc.cluster.local:5000"
+          value: "http://mlflow-service.mlops-training:5000"
         - name: ENVIRONMENT
           value: "production"
         - name: LOG_LEVEL
