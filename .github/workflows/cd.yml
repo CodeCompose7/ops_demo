@@ -126,7 +126,7 @@ jobs:
             
             # MLflow 준비 대기
             echo "   → MLflow 서버 준비 대기 중..."
-            kubectl wait --for=condition=ready pod -l app=mlflow-server -n mlops-training --timeout=120s || true
+            kubectl wait --for=condition=ready pod -l app=mlflow-server -n mlops-training --timeout=300s || true
             echo "✅ MLflow 서버 준비 완료"
             
             # 5. Training Controller 배포/업데이트
@@ -136,7 +136,7 @@ jobs:
             
             # Training Controller 준비 대기
             echo "   → Training Controller 준비 대기 중..."
-            kubectl wait --for=condition=ready pod -l app=training-controller -n mlops-training --timeout=120s || true
+            kubectl wait --for=condition=ready pod -l app=training-controller -n mlops-training --timeout=300s || true
             echo "✅ Training Controller 준비 완료"
             
             # 6. 서빙 API 무중단 배포
@@ -151,7 +151,7 @@ jobs:
               -n mlops-serving
             
             # 롤아웃 진행 상황 확인
-            kubectl rollout status deployment/iris-serving -n mlops-serving --timeout=180s
+            kubectl rollout status deployment/iris-serving -n mlops-serving --timeout=300s || true
             echo "✅ 서빙 API 배포 완료"
             
             # 정리

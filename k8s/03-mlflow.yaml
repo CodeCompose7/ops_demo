@@ -68,12 +68,13 @@ metadata:
   labels:
     app: mlflow-server
 spec:
-  type: ClusterIP
+  type: NodePort  # NodePort로 변경 (localhost 접근 가능)
   selector:
     app: mlflow-server
   ports:
   - port: 5000
     targetPort: 5000
+    nodePort: 30500  # localhost:30500으로 접근 가능
     protocol: TCP
     name: http
 

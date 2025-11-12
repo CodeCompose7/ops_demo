@@ -83,12 +83,13 @@ metadata:
   labels:
     app: iris-serving
 spec:
-  type: LoadBalancer
+  type: NodePort  # NodePort로 변경 (localhost 접근 가능)
   selector:
     app: iris-serving
   ports:
   - port: 80
     targetPort: 8000
+    nodePort: 30800  # localhost:30800으로 접근 가능
     protocol: TCP
     name: http
 

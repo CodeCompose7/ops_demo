@@ -98,12 +98,13 @@ metadata:
   labels:
     app: training-controller
 spec:
-  type: LoadBalancer  # ClusterIP에서 LoadBalancer로 변경
+  type: NodePort  # NodePort로 변경 (localhost 접근 가능)
   selector:
     app: training-controller
   ports:
   - port: 8080
     targetPort: 8080
+    nodePort: 30080  # localhost:30080으로 접근 가능
     protocol: TCP
     name: http
 
