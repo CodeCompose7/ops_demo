@@ -488,6 +488,10 @@ async def create_training_job(request: TrainingRequest):
                                         name="MLFLOW_TRACKING_URI",
                                         value="http://mlflow-service:5000",
                                     ),
+                                    client.V1EnvVar(
+                                        name="MLFLOW_ARTIFACT_URI",
+                                        value="file:///data/mlruns",
+                                    ),
                                     client.V1EnvVar(name="PYTHONUNBUFFERED", value="1"),
                                 ],
                                 volume_mounts=[

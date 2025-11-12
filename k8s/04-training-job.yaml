@@ -37,6 +37,8 @@ spec:
         env:
         - name: MLFLOW_TRACKING_URI
           value: "http://mlflow-service:5000"
+        - name: MLFLOW_ARTIFACT_URI
+          value: "file:///data/mlruns"
         - name: PYTHONUNBUFFERED
           value: "1"
         volumeMounts:

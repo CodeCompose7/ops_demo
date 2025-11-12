@@ -1,4 +1,5 @@
 import argparse
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -14,6 +15,11 @@ class IrisMLPipelineWithMLflow:
 
     def __init__(self):
         """MLflow 실험 설정"""
+        # MLflow Tracking URI 명시적 설정
+        tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow-service:5000")
+        mlflow.set_tracking_uri(tracking_uri)
+        print(f"  → MLflow Tracking URI: {tracking_uri}")
+        
         mlflow.set_experiment("iris-classification")
 
     def preprocess_data(self, X):
