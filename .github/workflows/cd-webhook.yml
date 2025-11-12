@@ -144,9 +144,9 @@ jobs:
             kubectl rollout restart deployment/training-controller -n mlops-training
             echo "  ✓ Training Controller 배포 완료"
             
-            # Serving API 무중단 배포 (이미지 태그 업데이트)
-            kubectl set image deployment/iris-serving serving=ops-demo:serving-${VERSION} -n mlops-serving
+            # Serving API 무중단 배포
             kubectl apply -f 05-serving.yaml
+            kubectl set image deployment/iris-serving serving=ops-demo:serving-${VERSION} -n mlops-serving
             echo "  ✓ Serving API 배포 완료"
             
             echo ""
