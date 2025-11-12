@@ -114,7 +114,7 @@ jobs:
             
             # 호스트 디렉토리 생성
             mkdir -p /data/mlops
-            chmod 777 /data/mlops
+            # chmod 777 /data/mlops
             
             kubectl apply -f /tmp/k8s/02-storage.yaml
             echo "✅ 스토리지 준비 완료"
