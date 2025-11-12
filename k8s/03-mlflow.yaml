@@ -29,6 +29,10 @@ spec:
         - --port=5000
         - --backend-store-uri=sqlite:////data/mlflow.db
         - --default-artifact-root=/data/mlruns
+        - --serve-artifacts
+        env:
+        - name: GUNICORN_CMD_ARGS
+          value: "--timeout 60 --forwarded-allow-ips='*'"
         ports:
         - containerPort: 5000
           name: http
