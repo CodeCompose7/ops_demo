@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
-from pathlib import Path
+
+# from pathlib import Path
 from typing import List
 
-import joblib
+# import joblib
 import mlflow
 import mlflow.sklearn
 import numpy as np
@@ -29,8 +30,14 @@ def load_model():
         "http://mlflow-service.mlops-training:5000",
     )
     mlflow.set_tracking_uri(tracking_uri)
+
+    # 중요: Artifacts도 HTTP를 통해 다운로드하도록 설정
+    # MLflow Server가 --serve-artifacts를 사용하므로 가능
+    os.environ["MLFLOW_ARTIFACT_URI"] = tracking_uri
+
     client = MlflowClient(tracking_uri=tracking_uri)
     print(f"  → MLflow Tracking URI: {tracking_uri}")
+    print(f"  → MLflow Artifact URI: {tracking_uri} (HTTP download)")
 
     # 프로덕션 → Staging → 최신 버전 순으로 시도
     stages_to_try = ["Production", "Staging", None]
@@ -38,7 +45,7 @@ def load_model():
     for stage in stages_to_try:
         try:
             if stage:
-                model_uri = f"models:/iris-classifier/{stage}"
+                # model_uri = f"models:/iris-classifier/{stage}"
                 latest_versions = client.get_latest_versions(
                     "iris-classifier", stages=[stage]
                 )
@@ -52,10 +59,23 @@ def load_model():
                     latest_versions,
                     key=lambda v: int(v.version),
                 )
-                model_uri = f"models:/iris-classifier/{latest_version.version}"
+                # model_uri = f"models:/iris-classifier/{latest_version.version}"
                 version_info = latest_version
                 run = client.get_run(version_info.run_id)
-                model = mlflow.sklearn.load_model(model_uri=model_uri)
+
+                # Artifacts를 HTTP를 통해 다운로드
+                print("  → Downloading model artifacts from MLflow Server...")
+
+                # MLflow가 HTTP를 통해 artifacts 다운로드 (임시 디렉토리에)
+                artifact_path = mlflow.artifacts.download_artifacts(
+                    run_id=version_info.run_id,
+                    artifact_path="model",
+                    tracking_uri=tracking_uri,
+                )
+                print(f"  → Downloaded to: {artifact_path}")
+
+                # 다운로드된 모델 로드
+                model = mlflow.sklearn.load_model(f"file://{artifact_path}")
 
                 MODEL = model
                 MODEL_INFO = {
@@ -84,9 +104,20 @@ def load_model():
             if not latest_versions:
                 continue
 
-            model = mlflow.sklearn.load_model(model_uri=model_uri)
             version_info = latest_versions[0]
             run = client.get_run(version_info.run_id)
+
+            # Artifacts를 HTTP를 통해 다운로드
+            print(f"  → Downloading model artifacts from MLflow Server ({stage})...")
+            artifact_path = mlflow.artifacts.download_artifacts(
+                run_id=version_info.run_id,
+                artifact_path="model",
+                tracking_uri=tracking_uri,
+            )
+            print(f"  → Downloaded to: {artifact_path}")
+
+            # 다운로드된 모델 로드
+            model = mlflow.sklearn.load_model(f"file://{artifact_path}")
 
             MODEL = model
             MODEL_INFO = {
